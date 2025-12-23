@@ -1,0 +1,302 @@
+# GhostLine On-Call Runbook
+
+## Overview
+
+This runbook provides procedures for on-call engineers responding to GhostLine platform incidents.
+
+## Contact Information
+
+### Escalation Path
+1. **Primary On-Call**: Check PagerDuty schedule
+2. **Secondary On-Call**: Auto-escalates after 15 minutes
+3. **Engineering Manager**: Escalates after 30 minutes
+4. **VP Engineering**: Critical incidents only
+
+### Key Contacts
+- **AWS Support**: [AWS Console](https://console.aws.amazon.com/support)
+- **PagerDuty**: [ghostline.pagerduty.com](https://ghostline.pagerduty.com)
+- **Status Page**: [status.ghostline.ai](https://status.ghostline.ai)
+
+## PagerDuty Integration
+
+### Webhook Configuration
+```json
+{
+  "webhook_url": "https://events.pagerduty.com/v2/enqueue",
+  "routing_key": "YOUR_PAGERDUTY_ROUTING_KEY",
+  "event_action": "trigger",
+  "payload": {
+    "summary": "GhostLine Alert: {{alert_name}}",
+    "source": "aws-cloudwatch",
+    "severity": "{{severity}}",
+    "custom_details": {
+      "environment": "{{environment}}",
+      "region": "{{region}}",
+      "metric": "{{metric_name}}",
+      "value": "{{metric_value}}"
+    }
+  }
+}
+```
+
+### Setting Up PagerDuty
+1. Create service in PagerDuty for GhostLine
+2. Generate integration key
+3. Update CloudWatch SNS topics with webhook
+4. Test integration with manual alert
+
+## Common Incidents
+
+### 1. High API Latency
+**Symptoms**: API response time > 2 seconds
+
+**Investigation**:
+```bash
+# Check ECS task health
+aws ecs describe-services --cluster ghostline-dev --services ghostline-api
+
+# Check ALB target health
+aws elbv2 describe-target-health --target-group-arn <ARN>
+
+# View CloudWatch metrics
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/ECS \
+  --metric-name CPUUtilization \
+  --dimensions Name=ServiceName,Value=ghostline-api \
+  --start-time 2024-01-01T00:00:00Z \
+  --end-time 2024-01-01T01:00:00Z \
+  --period 300 \
+  --statistics Average
+```
+
+**Resolution**:
+1. Scale ECS service if CPU/Memory > 80%
+2. Check RDS performance insights
+3. Review recent deployments
+4. Check for DDoS (WAF logs)
+
+### 2. Database Connection Errors
+**Symptoms**: "connection refused" or timeout errors
+
+**Investigation**:
+```bash
+# Check RDS status
+aws rds describe-db-instances --db-instance-identifier ghostline-dev
+
+# Check connection count
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/RDS \
+  --metric-name DatabaseConnections \
+  --dimensions Name=DBInstanceIdentifier,Value=ghostline-dev \
+  --start-time 2024-01-01T00:00:00Z \
+  --end-time 2024-01-01T01:00:00Z \
+  --period 300 \
+  --statistics Maximum
+```
+
+**Resolution**:
+1. Check max_connections setting
+2. Identify connection leaks
+3. Restart application pods if needed
+4. Scale RDS instance if at capacity
+
+### 3. S3 Access Denied
+**Symptoms**: 403 errors when accessing S3
+
+**Investigation**:
+```bash
+# Check S3 bucket policy
+aws s3api get-bucket-policy --bucket ghostline-dev-source-materials
+
+# Check IAM role permissions
+aws iam get-role-policy --role-name ghostline-ecs-task-role --policy-name S3Access
+```
+
+**Resolution**:
+1. Verify IAM role attached to ECS tasks
+2. Check S3 bucket policies
+3. Verify KMS key permissions
+4. Check for SCP restrictions
+
+### 4. High AWS Costs Alert
+**Symptoms**: Budget alert triggered
+
+**Investigation**:
+```bash
+# Check cost explorer
+aws ce get-cost-and-usage \
+  --time-period Start=2024-01-01,End=2024-01-31 \
+  --granularity DAILY \
+  --metrics "UnblendedCost" \
+  --group-by Type=DIMENSION,Key=SERVICE
+
+# Check Bedrock usage
+aws bedrock list-model-invocation-logs \
+  --start-time 2024-01-01T00:00:00Z \
+  --end-time 2024-01-31T23:59:59Z
+```
+
+**Resolution**:
+1. Identify cost spike source
+2. Check for runaway processes
+3. Review Bedrock token usage
+4. Implement rate limiting if needed
+
+### 5. GuardDuty Security Alert
+**Symptoms**: GuardDuty finding notification
+
+**Investigation**:
+```bash
+# List recent findings
+aws guardduty list-findings --detector-id <DETECTOR_ID>
+
+# Get finding details
+aws guardduty get-findings \
+  --detector-id <DETECTOR_ID> \
+  --finding-ids <FINDING_ID>
+```
+
+**Resolution**:
+1. Assess severity and impact
+2. Isolate affected resources
+3. Preserve evidence
+4. Follow security incident response plan
+
+## Monitoring Dashboards
+
+### CloudWatch Dashboards
+- **Main Dashboard**: `https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=ghostline-dev`
+- **Cost Dashboard**: `https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=ghostline-dev-costs`
+
+### Key Metrics to Monitor
+1. **API Health**
+   - Response time (p50, p90, p99)
+   - Error rate
+   - Request count
+
+2. **Infrastructure**
+   - ECS CPU/Memory utilization
+   - RDS CPU/Connections
+   - S3 request errors
+
+3. **Business Metrics**
+   - Active book generations
+   - Token usage rate
+   - User sign-ups
+
+## Recovery Procedures
+
+### 1. Rollback Deployment
+```bash
+# List recent task definitions
+aws ecs list-task-definitions --family-prefix ghostline-api
+
+# Update service to previous version
+aws ecs update-service \
+  --cluster ghostline-dev \
+  --service ghostline-api \
+  --task-definition ghostline-api:PREVIOUS_VERSION
+```
+
+### 2. Database Recovery
+```bash
+# Create manual snapshot
+aws rds create-db-snapshot \
+  --db-instance-identifier ghostline-dev \
+  --db-snapshot-identifier ghostline-dev-manual-$(date +%Y%m%d%H%M%S)
+
+# Restore from snapshot
+aws rds restore-db-instance-from-db-snapshot \
+  --db-instance-identifier ghostline-dev-restored \
+  --db-snapshot-identifier <SNAPSHOT_ID>
+```
+
+### 3. Scale Resources
+```bash
+# Scale ECS service
+aws ecs update-service \
+  --cluster ghostline-dev \
+  --service ghostline-api \
+  --desired-count 10
+
+# Scale RDS instance
+aws rds modify-db-instance \
+  --db-instance-identifier ghostline-dev \
+  --db-instance-class db.r6g.xlarge \
+  --apply-immediately
+```
+
+## Post-Incident
+
+### Required Actions
+1. Update incident in PagerDuty
+2. Create post-mortem document
+3. Update runbook with learnings
+4. Schedule post-mortem meeting
+5. Create JIRA tickets for action items
+
+### Post-Mortem Template
+```markdown
+# Incident Post-Mortem: [INCIDENT_ID]
+
+**Date**: [DATE]
+**Duration**: [START_TIME] - [END_TIME]
+**Severity**: [P1/P2/P3]
+**Impact**: [USER_IMPACT]
+
+## Summary
+[Brief description of what happened]
+
+## Timeline
+- [TIME]: [EVENT]
+- [TIME]: [EVENT]
+
+## Root Cause
+[Detailed explanation of root cause]
+
+## Resolution
+[How the incident was resolved]
+
+## Action Items
+- [ ] [ACTION_ITEM] - Owner: [NAME] - Due: [DATE]
+- [ ] [ACTION_ITEM] - Owner: [NAME] - Due: [DATE]
+
+## Lessons Learned
+[What went well, what could be improved]
+```
+
+## Useful Commands
+
+### AWS CLI Aliases
+```bash
+# Add to ~/.aws/cli/alias
+[toplevel]
+ecs-tasks = ecs list-tasks --cluster ghostline-dev
+rds-status = rds describe-db-instances --db-instance-identifier ghostline-dev --query 'DBInstances[0].DBInstanceStatus'
+s3-size = s3 ls s3://ghostline-dev-source-materials --recursive --summarize --human-readable
+```
+
+### Terraform Commands
+```bash
+# Plan changes
+cd /path/to/ghostline/infra/terraform/environments/dev
+terraform plan
+
+# Apply with approval
+terraform apply
+
+# Import existing resources
+terraform import module.vpc.aws_vpc.main vpc-12345
+```
+
+## Emergency Contacts
+
+- **AWS Support**: 1-800-xxx-xxxx (Premium Support)
+- **Engineering Manager**: +1-xxx-xxx-xxxx
+- **VP Engineering**: +1-xxx-xxx-xxxx
+- **Security Team**: security@ghostline.ai
+
+---
+
+**Last Updated**: 2025-01-26
+**Next Review**: 2025-02-26 

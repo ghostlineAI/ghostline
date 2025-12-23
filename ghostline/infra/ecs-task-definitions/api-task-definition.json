@@ -1,0 +1,73 @@
+{
+  "family": "ghostline-dev-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::820242943150:role/ghostline-dev-ecs-task-execution",
+  "taskRoleArn": "arn:aws:iam::820242943150:role/ghostline-dev-ecs-task",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "820242943150.dkr.ecr.us-west-2.amazonaws.com/ghostline-api:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "dev"
+        },
+        {
+          "name": "AWS_DEFAULT_REGION",
+          "value": "us-west-2"
+        },
+        {
+          "name": "FORWARDED_ALLOW_IPS",
+          "value": "*"
+        },
+        {
+          "name": "USE_X_FORWARDED_HOST",
+          "value": "true"
+        },
+        {
+          "name": "USE_X_FORWARDED_PORT",
+          "value": "true"
+        },
+        {
+          "name": "USE_X_FORWARDED_PROTO",
+          "value": "true"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-west-2:820242943150:secret:ghostline/dev/database-url"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-west-2:820242943150:secret:ghostline/dev/redis-url"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ghostline-dev",
+          "awslogs-region": "us-west-2",
+          "awslogs-stream-prefix": "api"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+} 

@@ -1,0 +1,146 @@
+
+---- STEP 1: RDS Backup
+
+FEATURE_NAME = ...
+
+Instructions: 
+
+Take a manual RDS snapshot of the production database.
+   - Use a clear, timestamped name like: `pre-{FEATURE_NAME}-{initials}-{YYYYMMDD-HHMM}`
+   - Wait until the snapshot shows `available` in the AWS Console.
+   - Refer to the Blueprint's "Database Disaster Recovery" section and use the snapshot procedures shown there.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+- A great source of context is in (GHOSTLINE_FEATURE_DEVELOPMENT_BLUEPRINT.md).  However, do not treat it as a source of ground truth for right now.  
+
+---- STEP 2: Create Feature
+
+FEATURE_NAME = ...
+
+Here's some context ...
+
+Instructions: 
+
+- Fully implement the feature across all relevant repos: FE, BE, infra.  These repos are located in GhostLine/ghostline/*
+- When this is done, push the changes to the relevant repos w/ comment "PHASE 2 Complete: {FEATURE_NAME}"
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+- A great source of context is in (GHOSTLINE_FEATURE_DEVELOPMENT_BLUEPRINT.md).  However, do not treat it as a source of ground truth for right now. 
+
+>>> Followup
+Are you positive the naming conventions for this feature are consistent across the web repo, the api repo, the infra repo (if applicable), the database?  Is the schema consistent across all these?  Is the datatype consistent across all these
+
+---- STEP 3: E2E Tests
+
+Write full, live end-to-end (E2E) Pytests for all relevant repos: FE, BE, infra.  These repos are located in GhostLine/ghostline/*.  You should also run all these pytests.
+
+Instructions: 
+   - **DO NOT USE MOCK TESTS.**
+   - Your tests must run against real environments, not stubs.
+   - Check out the other E2E integration tests we've already written in the 3 repos - following what we do here will greatly help your understanding
+   - See the blueprint for guidance - there is a lot of great info in here on how to run these
+   - When this is done, push the changes to the relevant repos w/ comment "PHASE 3 Complete: {FEATURE_NAME}"
+
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+- A great source of context is in (GHOSTLINE_FEATURE_DEVELOPMENT_BLUEPRINT.md).  However, do not treat it as a source of ground truth for right now.  
+
+>>> Followup
+Did you ensure that you did this for all the relevant repos?  Also, did you ensure that we're doing this against real environments?  Again, feel free to check out already written E2E tests for guidance along with the GHOSTLINE_FEATURE_DEVELOPMENT_BLUEPRINT. 
+
+---- STEP 4: CI/CD
+
+FEATURE_NAME = ...
+
+
+Instructions: 
+
+- Add or update CI/CD-level tests across all relevant repos: FE, BE, infra.  These repos are located in GhostLine/ghostline/*
+
+- Please run them to ensure everything is working properly.  
+
+- When this is done, push the changes to the relevant repos w/ comment "PHASE 4 Complete: {FEATURE_NAME}"
+
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+- A great source of context is in (GHOSTLINE_FEATURE_DEVELOPMENT_BLUEPRINT.md).  However, do not treat it as a source of ground truth for right now.  
+
+---
+
+## PHASE 5 — RUN CI/CD + VERIFY DEPLOYMENTS
+Whenever you see a `{}` that is a variable for you to fill out.  
+**You MUST follow every checklist 100%.**
+
+
+**{FEATURE NAME}:**
+
+**Context:**  
+[ ]
+
+### Checklist for this phase (YOU MUST 100% FOLLOW THIS):
+
+1. Push to `main` to trigger the CI/CD pipeline and confirm:
+   - All test suites run
+   - All CI/CD tests written in Phase 4 pass successfully
+   - GitHub Actions completes without failure
+
+2. Confirm both the API and web apps deploy correctly.  
+   - Use GitHub Actions logs, ECS console, and S3/CloudFront verification
+
+3. Visit the live app and confirm that `{FEATURE NAME}` is functional in production.
+
+4. If anything fails, fix it and repeat this checklist from step 1.
+
+5. Push any final fixes to the `main` branch using the commit message:  
+   `"PHASE 5 for feature {FEATURE NAME} complete."`
+
+6. Log all unexpected issues in the Blueprint so others don’t repeat them.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+
+---
+
+## PHASE 6 — FINAL VERIFICATION
+Whenever you see a `{}` that is a variable for you to fill out.  
+**You MUST follow every checklist 100%.**
+
+
+**{FEATURE NAME}:**
+
+**Context:**  
+[ ]
+
+### Checklist for this phase (YOU MUST 100% FOLLOW THIS):
+
+1. Do a final full-stack check:
+   - All E2E and CI/CD tests must pass
+   - Everything must be deployed cleanly
+   - The feature must work in the live environment
+   - **THIS IS YOUR LAST CHANCE TO GET IT RIGHT BEFORE I PERSONALLY OPEN THE UI AND TEST IT.**
+
+2. If anything breaks, fix it and restart this phase.
+
+3. Once it passes, push to the `main` branch using the commit message:  
+   `"PHASE 6 for feature {FEATURE NAME} complete."`
+
+4. Finalize your updates to the Blueprint with everything you learned.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.

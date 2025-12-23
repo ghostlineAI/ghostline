@@ -1,0 +1,673 @@
+{
+    "service": {
+        "serviceArn": "arn:aws:ecs:us-west-2:820242943150:service/ghostline-dev/api",
+        "serviceName": "api",
+        "clusterArn": "arn:aws:ecs:us-west-2:820242943150:cluster/ghostline-dev",
+        "loadBalancers": [
+            {
+                "targetGroupArn": "arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418",
+                "containerName": "api",
+                "containerPort": 8000
+            }
+        ],
+        "serviceRegistries": [],
+        "status": "ACTIVE",
+        "desiredCount": 1,
+        "runningCount": 0,
+        "pendingCount": 1,
+        "launchType": "FARGATE",
+        "platformVersion": "LATEST",
+        "platformFamily": "Linux",
+        "taskDefinition": "arn:aws:ecs:us-west-2:820242943150:task-definition/ghostline-dev-api:92",
+        "deploymentConfiguration": {
+            "deploymentCircuitBreaker": {
+                "enable": false,
+                "rollback": false
+            },
+            "maximumPercent": 200,
+            "minimumHealthyPercent": 100
+        },
+        "deployments": [
+            {
+                "id": "ecs-svc/7454813981149084262",
+                "status": "PRIMARY",
+                "taskDefinition": "arn:aws:ecs:us-west-2:820242943150:task-definition/ghostline-dev-api:92",
+                "desiredCount": 0,
+                "pendingCount": 0,
+                "runningCount": 0,
+                "failedTasks": 0,
+                "createdAt": "2025-07-03T10:22:51.748000-07:00",
+                "updatedAt": "2025-07-03T10:22:51.748000-07:00",
+                "launchType": "FARGATE",
+                "platformVersion": "1.4.0",
+                "platformFamily": "Linux",
+                "networkConfiguration": {
+                    "awsvpcConfiguration": {
+                        "subnets": [
+                            "subnet-044c7900327079b34",
+                            "subnet-077b46dfaca235d22"
+                        ],
+                        "securityGroups": [
+                            "sg-0a0ed33155ed7b1ea"
+                        ],
+                        "assignPublicIp": "ENABLED"
+                    }
+                },
+                "rolloutState": "IN_PROGRESS",
+                "rolloutStateReason": "ECS deployment ecs-svc/7454813981149084262 in progress."
+            },
+            {
+                "id": "ecs-svc/0776998454777533453",
+                "status": "ACTIVE",
+                "taskDefinition": "arn:aws:ecs:us-west-2:820242943150:task-definition/ghostline-dev-api:95",
+                "desiredCount": 1,
+                "pendingCount": 1,
+                "runningCount": 0,
+                "failedTasks": 1,
+                "createdAt": "2025-07-03T10:20:08.901000-07:00",
+                "updatedAt": "2025-07-03T10:20:24.165000-07:00",
+                "launchType": "FARGATE",
+                "platformVersion": "1.4.0",
+                "platformFamily": "Linux",
+                "networkConfiguration": {
+                    "awsvpcConfiguration": {
+                        "subnets": [
+                            "subnet-044c7900327079b34",
+                            "subnet-077b46dfaca235d22"
+                        ],
+                        "securityGroups": [
+                            "sg-0a0ed33155ed7b1ea"
+                        ],
+                        "assignPublicIp": "ENABLED"
+                    }
+                },
+                "rolloutState": "IN_PROGRESS",
+                "rolloutStateReason": "ECS deployment ecs-svc/0776998454777533453 in progress."
+            },
+            {
+                "id": "ecs-svc/1110266680869000456",
+                "status": "ACTIVE",
+                "taskDefinition": "arn:aws:ecs:us-west-2:820242943150:task-definition/ghostline-dev-api:95",
+                "desiredCount": 0,
+                "pendingCount": 0,
+                "runningCount": 0,
+                "failedTasks": 2,
+                "createdAt": "2025-07-03T10:12:44.436000-07:00",
+                "updatedAt": "2025-07-03T10:20:24.182000-07:00",
+                "launchType": "FARGATE",
+                "platformVersion": "1.4.0",
+                "platformFamily": "Linux",
+                "networkConfiguration": {
+                    "awsvpcConfiguration": {
+                        "subnets": [
+                            "subnet-044c7900327079b34",
+                            "subnet-077b46dfaca235d22"
+                        ],
+                        "securityGroups": [
+                            "sg-0a0ed33155ed7b1ea"
+                        ],
+                        "assignPublicIp": "ENABLED"
+                    }
+                },
+                "rolloutState": "IN_PROGRESS",
+                "rolloutStateReason": "ECS deployment ecs-svc/1110266680869000456 in progress."
+            },
+            {
+                "id": "ecs-svc/4143573712160620837",
+                "status": "ACTIVE",
+                "taskDefinition": "arn:aws:ecs:us-west-2:820242943150:task-definition/ghostline-dev-api:92",
+                "desiredCount": 0,
+                "pendingCount": 0,
+                "runningCount": 0,
+                "failedTasks": 0,
+                "createdAt": "2025-07-03T10:01:53.163000-07:00",
+                "updatedAt": "2025-07-03T10:20:24.186000-07:00",
+                "launchType": "FARGATE",
+                "platformVersion": "1.4.0",
+                "platformFamily": "Linux",
+                "networkConfiguration": {
+                    "awsvpcConfiguration": {
+                        "subnets": [
+                            "subnet-044c7900327079b34",
+                            "subnet-077b46dfaca235d22"
+                        ],
+                        "securityGroups": [
+                            "sg-0a0ed33155ed7b1ea"
+                        ],
+                        "assignPublicIp": "ENABLED"
+                    }
+                },
+                "rolloutState": "COMPLETED",
+                "rolloutStateReason": "ECS deployment ecs-svc/4143573712160620837 completed."
+            }
+        ],
+        "roleArn": "arn:aws:iam::820242943150:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS",
+        "events": [
+            {
+                "id": "be9b3c42-f1e5-4944-a3af-f7198e262a13",
+                "createdAt": "2025-07-03T10:22:42.763000-07:00",
+                "message": "(service api) has started 1 tasks: (task 5e97bcb098dd481b91ffc316eecece9e)."
+            },
+            {
+                "id": "b20c01e9-6aa0-4689-a6d5-276401235df1",
+                "createdAt": "2025-07-03T10:20:25.038000-07:00",
+                "message": "(service api) has started 1 tasks: (task 37f270f9621743789129a42c83f256f5)."
+            },
+            {
+                "id": "af41f649-d239-4c88-8b2b-f80e4340e9aa",
+                "createdAt": "2025-07-03T10:20:14.314000-07:00",
+                "message": "(service api, taskSet ecs-svc/4143573712160620837) has begun draining connections on 1 tasks."
+            },
+            {
+                "id": "fd994c90-ff13-49e3-9676-60cd3afd38c2",
+                "createdAt": "2025-07-03T10:20:14.309000-07:00",
+                "message": "(service api) deregistered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "88d2b5b8-0616-4395-8a55-bdf1db5428c0",
+                "createdAt": "2025-07-03T10:17:15.963000-07:00",
+                "message": "(service api) has started 1 tasks: (task 793ab1c9032c4de5bbc24cacaae27714)."
+            },
+            {
+                "id": "a38f6ad3-a36d-4b80-a43a-949ea08bfb55",
+                "createdAt": "2025-07-03T10:15:01.313000-07:00",
+                "message": "(service api) has started 1 tasks: (task af272e2e29c04d63bd24e5dfe1c148ef)."
+            },
+            {
+                "id": "71cd2459-1654-4612-a348-e61d02f170c4",
+                "createdAt": "2025-07-03T10:12:56.418000-07:00",
+                "message": "(service api) has started 1 tasks: (task 2314fe872c044a7ea04901c72223a779)."
+            },
+            {
+                "id": "aa6226bd-a610-40d9-abc7-e60c91197394",
+                "createdAt": "2025-07-03T10:10:08.948000-07:00",
+                "message": "(service api) has started 1 tasks: (task 4f756eb202c74674b883705c993157af)."
+            },
+            {
+                "id": "da6fb348-8683-4d8a-a323-209cf0232a10",
+                "createdAt": "2025-07-03T10:07:50.997000-07:00",
+                "message": "(service api) has started 1 tasks: (task e050099b4951462a9267697020ce734e)."
+            },
+            {
+                "id": "39bf5ca2-0b2d-4743-bca3-8b336ba57d8f",
+                "createdAt": "2025-07-03T10:05:38.740000-07:00",
+                "message": "(service api) has started 1 tasks: (task 8074f8c18a83467390fd19b1f9f1fc46)."
+            },
+            {
+                "id": "a6f6612b-b465-43f0-9419-dc78b9c638c1",
+                "createdAt": "2025-07-03T10:04:47.294000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "2193759c-a0b7-4a18-9a69-fd837cc026de",
+                "createdAt": "2025-07-03T10:04:47.293000-07:00",
+                "message": "(service api) (deployment ecs-svc/4143573712160620837) deployment completed."
+            },
+            {
+                "id": "e28c632b-5a77-43c2-8623-9d63bdc5882f",
+                "createdAt": "2025-07-03T10:03:36.118000-07:00",
+                "message": "(service api, taskSet ecs-svc/3749947609389058234) has begun draining connections on 1 tasks."
+            },
+            {
+                "id": "0c7a87c3-622a-4f7e-b794-5c213a136697",
+                "createdAt": "2025-07-03T10:03:36.113000-07:00",
+                "message": "(service api) deregistered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "a81a8759-33d0-447a-9f6d-3ca15ad017e6",
+                "createdAt": "2025-07-03T10:03:34.712000-07:00",
+                "message": "(service api) has stopped 1 running tasks: (task 421e6ca210e743e7b9ae1ba70459c079)."
+            },
+            {
+                "id": "cc2907ab-34bb-4c75-a020-6e10036a359e",
+                "createdAt": "2025-07-03T10:02:44.824000-07:00",
+                "message": "(service api) registered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "de6d6a91-c42c-4f2c-907e-f61c619f5007",
+                "createdAt": "2025-07-03T10:02:04.809000-07:00",
+                "message": "(service api) has started 1 tasks: (task 1634230e00a24798ae08bd36415e3b37)."
+            },
+            {
+                "id": "728452bb-f080-4602-aae9-790ba8a01f88",
+                "createdAt": "2025-07-03T09:58:16.150000-07:00",
+                "message": "(service api) has started 1 tasks: (task 14b1f9787e864906a1713ec43345855e)."
+            },
+            {
+                "id": "bca4f8aa-92f1-41ab-81a4-eced76aca565",
+                "createdAt": "2025-07-03T09:50:33.095000-07:00",
+                "message": "(service api) has started 1 tasks: (task 8fd08a4743e94c7ca9eb7a6727a57d5c)."
+            },
+            {
+                "id": "59a9cb22-3fb8-425b-a95f-80c936188358",
+                "createdAt": "2025-07-03T09:47:06.740000-07:00",
+                "message": "(service api) has started 1 tasks: (task b2b1e30fa9234c9ca12bba3f4287d8e5)."
+            },
+            {
+                "id": "d56ddfa0-55f8-49b5-9412-65f1cc8c3214",
+                "createdAt": "2025-07-03T09:43:34.165000-07:00",
+                "message": "(service api) has started 1 tasks: (task 3183f795eb304c19aff7e285c2dfc2b1)."
+            },
+            {
+                "id": "f327608d-e240-4e0f-90d1-51315a07508e",
+                "createdAt": "2025-07-03T09:38:30.589000-07:00",
+                "message": "(service api) has started 1 tasks: (task 4fe8a2c3ab414e87882b61540168fa28)."
+            },
+            {
+                "id": "589ee06d-c416-470d-b8d3-c84ccf87cd4f",
+                "createdAt": "2025-07-03T09:35:04.677000-07:00",
+                "message": "(service api) has started 1 tasks: (task c20021859a9f455186a72d51333abcaf)."
+            },
+            {
+                "id": "20219986-524e-4f46-a444-77a7c9cab61a",
+                "createdAt": "2025-07-03T09:31:40.073000-07:00",
+                "message": "(service api) has started 1 tasks: (task 3b2fb7254d5341a6ac0eb634ecdcb8fd)."
+            },
+            {
+                "id": "ed44ffd4-83f4-4d1f-91b9-d05d9ddb8dff",
+                "createdAt": "2025-07-03T09:31:30.225000-07:00",
+                "message": "(service api) stopped 1 pending tasks."
+            },
+            {
+                "id": "94a4013e-08d9-4be9-a9da-d1404ed4fb64",
+                "createdAt": "2025-07-03T09:30:37.674000-07:00",
+                "message": "(service api) has started 1 tasks: (task 9e9f6cf80e454153b05c9887dd220129)."
+            },
+            {
+                "id": "8d4792d8-831b-4d3a-b8e4-de6d34e032f2",
+                "createdAt": "2025-07-03T09:27:17.639000-07:00",
+                "message": "(service api) has started 1 tasks: (task 527bc9613dd7453886a12b5e6dda73fe)."
+            },
+            {
+                "id": "1a155724-bd75-4540-bd2f-ca4323d9d980",
+                "createdAt": "2025-07-03T09:23:52.574000-07:00",
+                "message": "(service api) has started 1 tasks: (task 76b848485faf42e59397776a38f7df51)."
+            },
+            {
+                "id": "0c581ce8-d11d-4837-99dd-8e0dceead959",
+                "createdAt": "2025-07-03T09:20:18.345000-07:00",
+                "message": "(service api) has started 1 tasks: (task 992dfb9d69f74e629057801fba907dc9)."
+            },
+            {
+                "id": "e52a5721-1845-4ef8-8624-db7f30ac54c6",
+                "createdAt": "2025-07-03T09:19:37.484000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "4a7bfb69-ef8a-4adb-b80a-df86754c39fa",
+                "createdAt": "2025-07-03T09:19:37.483000-07:00",
+                "message": "(service api) (deployment ecs-svc/3749947609389058234) deployment completed."
+            },
+            {
+                "id": "b689f23a-37bd-4cac-9cb8-9e4ea0d18212",
+                "createdAt": "2025-07-03T09:18:46.158000-07:00",
+                "message": "(service api, taskSet ecs-svc/3020187861412707359) has begun draining connections on 1 tasks."
+            },
+            {
+                "id": "33c96c6f-b395-452a-bad4-d298af9c2b7c",
+                "createdAt": "2025-07-03T09:18:46.154000-07:00",
+                "message": "(service api) deregistered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "e43ae0b5-289c-4fbc-9ee0-6bc57da4bcd0",
+                "createdAt": "2025-07-03T09:18:35.830000-07:00",
+                "message": "(service api) has stopped 1 running tasks: (task 0c89cd42d0b34215a26820c60d5c2b1a)."
+            },
+            {
+                "id": "04b34bd9-f91a-4fd2-8047-da157cce5248",
+                "createdAt": "2025-07-03T09:17:53.373000-07:00",
+                "message": "(service api) registered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "f051c111-6801-4107-a2e7-7656e39f3208",
+                "createdAt": "2025-07-03T09:17:25.849000-07:00",
+                "message": "(service api) has started 1 tasks: (task 421e6ca210e743e7b9ae1ba70459c079)."
+            },
+            {
+                "id": "2b8afa56-1f33-486e-ac52-c4f6991463a8",
+                "createdAt": "2025-07-03T09:06:59.401000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "b6682b2e-3f6b-48f6-843c-b93e1736a0a9",
+                "createdAt": "2025-07-03T03:06:21.789000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "cc2b7b6d-06b3-478a-8655-d3f4f288136a",
+                "createdAt": "2025-07-02T21:05:55.132000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "8dd36f5c-3112-4ebb-a715-fe2829a7abaa",
+                "createdAt": "2025-07-02T15:05:42.129000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "082a07b6-243b-4bad-aafc-a4152b4e6ec8",
+                "createdAt": "2025-07-02T15:05:42.128000-07:00",
+                "message": "(service api) (deployment ecs-svc/3020187861412707359) deployment completed."
+            },
+            {
+                "id": "81ddc264-d84c-4070-bac9-adac6840095c",
+                "createdAt": "2025-07-02T15:04:30.942000-07:00",
+                "message": "(service api, taskSet ecs-svc/8235468680674303687) has begun draining connections on 1 tasks."
+            },
+            {
+                "id": "eec2034e-6b18-41bc-a4af-68491cc9c8a3",
+                "createdAt": "2025-07-02T15:04:30.937000-07:00",
+                "message": "(service api) deregistered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "0e8d26da-d0ea-4e25-b5a7-a984e1a812be",
+                "createdAt": "2025-07-02T15:04:29.574000-07:00",
+                "message": "(service api) has stopped 1 running tasks: (task f0bffb1487c7497490da8fd9cb9d7654)."
+            },
+            {
+                "id": "1ca0f2f1-e5f0-4160-8871-35386152e4e5",
+                "createdAt": "2025-07-02T15:03:39.247000-07:00",
+                "message": "(service api) registered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "b45e8a60-338c-49d8-bb95-3318848b71ac",
+                "createdAt": "2025-07-02T15:03:10.294000-07:00",
+                "message": "(service api) has started 1 tasks: (task 0c89cd42d0b34215a26820c60d5c2b1a)."
+            },
+            {
+                "id": "65301615-d540-4f45-98a9-edbb7e698ed6",
+                "createdAt": "2025-07-02T11:36:55.283000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "ce0161de-7334-4e48-a15d-7310bc048975",
+                "createdAt": "2025-07-02T11:36:55.282000-07:00",
+                "message": "(service api) (deployment ecs-svc/8235468680674303687) deployment completed."
+            },
+            {
+                "id": "ad2fb743-caf6-4a0d-917b-5c1e71d06c74",
+                "createdAt": "2025-07-02T11:35:54.953000-07:00",
+                "message": "(service api, taskSet ecs-svc/0391672551997642057) has begun draining connections on 1 tasks."
+            },
+            {
+                "id": "bf80404d-ce44-4503-8df6-a4a2c6d88729",
+                "createdAt": "2025-07-02T11:35:54.948000-07:00",
+                "message": "(service api) deregistered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "d67d28f9-2cb9-48be-bd89-a68b23824b86",
+                "createdAt": "2025-07-02T11:35:43.892000-07:00",
+                "message": "(service api) has stopped 1 running tasks: (task 78bc29c183d74436992d403ec2b292d1)."
+            },
+            {
+                "id": "35b9ee60-6d0c-4e17-a302-843d830eb37d",
+                "createdAt": "2025-07-02T11:34:53.012000-07:00",
+                "message": "(service api) registered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "6ff919da-6067-4638-ac21-6c5aebd7f0eb",
+                "createdAt": "2025-07-02T11:34:23.745000-07:00",
+                "message": "(service api) has started 1 tasks: (task f0bffb1487c7497490da8fd9cb9d7654)."
+            },
+            {
+                "id": "27862957-9cd4-473a-a1c1-a922d31d158a",
+                "createdAt": "2025-07-02T11:13:19.087000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "43684853-a9cc-49aa-8af3-6f2e23d68930",
+                "createdAt": "2025-07-02T11:13:19.086000-07:00",
+                "message": "(service api) (deployment ecs-svc/0391672551997642057) deployment completed."
+            },
+            {
+                "id": "4a430986-1bfd-4bf1-b271-570847d24252",
+                "createdAt": "2025-07-02T11:13:08.855000-07:00",
+                "message": "(service api) registered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "73b25f06-331d-47f9-8c21-4fcdad5bc974",
+                "createdAt": "2025-07-02T11:12:39.430000-07:00",
+                "message": "(service api) has started 1 tasks: (task 78bc29c183d74436992d403ec2b292d1)."
+            },
+            {
+                "id": "849ed964-6c96-4688-b3ee-43dfc754a18e",
+                "createdAt": "2025-07-02T11:12:17.211000-07:00",
+                "message": "(service api, taskSet ecs-svc/0887566127289360084) has begun draining connections on 1 tasks."
+            },
+            {
+                "id": "cde5be43-65f6-431f-86f0-57b419b7e344",
+                "createdAt": "2025-07-02T11:12:17.207000-07:00",
+                "message": "(service api) deregistered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "d7c53235-ce50-4666-86fd-003c43b00ca5",
+                "createdAt": "2025-07-02T11:12:08.177000-07:00",
+                "message": "(service api) has stopped 1 running tasks: (task 522e463d19df4cd9b08349d87890abc6)."
+            },
+            {
+                "id": "c866da06-1102-49ca-a350-91b3188662d1",
+                "createdAt": "2025-07-02T11:08:02.793000-07:00",
+                "message": "(service api, taskSet ecs-svc/0174440273912539693) has begun draining connections on 1 tasks."
+            },
+            {
+                "id": "eaaede6e-8604-4fb2-ba7e-e9495ad357f0",
+                "createdAt": "2025-07-02T11:08:02.789000-07:00",
+                "message": "(service api) deregistered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "dd7be33c-f95a-4d69-8ed7-ba1f837f690f",
+                "createdAt": "2025-07-02T11:07:53.349000-07:00",
+                "message": "(service api) has stopped 1 running tasks: (task cb0d90582cfc4191a8712221c372e0c7)."
+            },
+            {
+                "id": "4e0a2fb1-dd98-463d-afde-5f7319c9d96d",
+                "createdAt": "2025-07-02T11:07:02.343000-07:00",
+                "message": "(service api) registered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "f71ea38b-f382-4248-b12d-0e6903a0f8f4",
+                "createdAt": "2025-07-02T11:06:31.718000-07:00",
+                "message": "(service api) has started 1 tasks: (task 522e463d19df4cd9b08349d87890abc6)."
+            },
+            {
+                "id": "66d876ea-5cbc-45a9-8678-840d2bcf1f1a",
+                "createdAt": "2025-07-02T10:52:36.005000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "ddb9711e-7acb-4b45-a896-f30fba26b8ad",
+                "createdAt": "2025-07-02T10:52:36.004000-07:00",
+                "message": "(service api) (deployment ecs-svc/0174440273912539693) deployment completed."
+            },
+            {
+                "id": "acbef46f-6d34-4acc-b8d0-3895a561b05d",
+                "createdAt": "2025-07-02T10:51:44.948000-07:00",
+                "message": "(service api, taskSet ecs-svc/3350009589479000681) has begun draining connections on 1 tasks."
+            },
+            {
+                "id": "7900efb2-597e-4a3a-8cfb-959976687b35",
+                "createdAt": "2025-07-02T10:51:44.944000-07:00",
+                "message": "(service api) deregistered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "649a1b49-e1d0-4305-b2d6-27df5bb3391e",
+                "createdAt": "2025-07-02T10:51:34.177000-07:00",
+                "message": "(service api) has stopped 1 running tasks: (task 4c8cd1a17aa341659680459773b93291)."
+            },
+            {
+                "id": "c09e886e-994d-412a-bfbd-444a99e67e4d",
+                "createdAt": "2025-07-02T10:50:43.892000-07:00",
+                "message": "(service api) registered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "e5eca3f9-a702-48b0-b0fb-40a0d999c014",
+                "createdAt": "2025-07-02T10:50:13.223000-07:00",
+                "message": "(service api) has started 1 tasks: (task cb0d90582cfc4191a8712221c372e0c7)."
+            },
+            {
+                "id": "f7ac90c4-5c67-46e1-b41f-a5bc065c0472",
+                "createdAt": "2025-07-02T10:49:11.950000-07:00",
+                "message": "(service api, taskSet ecs-svc/8547412913578121779) has begun draining connections on 1 tasks."
+            },
+            {
+                "id": "1b37c5da-5479-4736-be1e-d41799f1ff5c",
+                "createdAt": "2025-07-02T10:49:11.946000-07:00",
+                "message": "(service api) deregistered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "1a6670ee-8476-4ab5-b721-2d246d552ece",
+                "createdAt": "2025-07-02T10:49:01.542000-07:00",
+                "message": "(service api) has stopped 1 running tasks: (task c96b0111fabb45138e77da82dce4c347)."
+            },
+            {
+                "id": "6877a40d-1729-4542-bcc8-c871987350a0",
+                "createdAt": "2025-07-02T10:48:10.764000-07:00",
+                "message": "(service api) registered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "a76d00ae-e896-4662-9ce4-c35f7de081dc",
+                "createdAt": "2025-07-02T10:47:40.565000-07:00",
+                "message": "(service api) has started 1 tasks: (task c96b0111fabb45138e77da82dce4c347)."
+            },
+            {
+                "id": "395c4e1d-a514-4783-8c4e-a290d2bdfcc2",
+                "createdAt": "2025-07-02T10:44:13.076000-07:00",
+                "message": "(service api) has reached a steady state."
+            },
+            {
+                "id": "606ef964-132b-447e-b52b-6f40af584972",
+                "createdAt": "2025-07-02T10:44:13.075000-07:00",
+                "message": "(service api) (deployment ecs-svc/3350009589479000681) deployment completed."
+            },
+            {
+                "id": "9f24e156-66e2-498b-9195-ce62af77ac38",
+                "createdAt": "2025-07-02T10:43:05.037000-07:00",
+                "message": "(service api) stopped 1 pending tasks."
+            },
+            {
+                "id": "00c00ad2-3aea-4505-abde-8cad7e8caef9",
+                "createdAt": "2025-07-02T10:42:45.250000-07:00",
+                "message": "(service api) registered 1 targets in (target-group arn:aws:elasticloadbalancing:us-west-2:820242943150:targetgroup/ghostline-dev-api/b68a78af2c9a6418)"
+            },
+            {
+                "id": "31ca2e26-78f2-4a22-9188-60f246fd3797",
+                "createdAt": "2025-07-02T10:42:13.781000-07:00",
+                "message": "(service api) has started 1 tasks: (task 4c8cd1a17aa341659680459773b93291)."
+            },
+            {
+                "id": "8f3563e4-fabc-4f2a-a6ad-781454c5f453",
+                "createdAt": "2025-07-02T10:40:53.305000-07:00",
+                "message": "(service api) has started 1 tasks: (task 9561b641058c4e4a9d77ad394bcc3c7f)."
+            },
+            {
+                "id": "000606b6-466e-497d-b36d-f12b9c6ff03f",
+                "createdAt": "2025-07-02T10:38:49.995000-07:00",
+                "message": "(service api) has started 1 tasks: (task c8010e14d63c48288c2967adf5960220)."
+            },
+            {
+                "id": "30832f48-3e63-440a-b353-28abfb4b395e",
+                "createdAt": "2025-07-02T10:37:18.961000-07:00",
+                "message": "(service api) has started 1 tasks: (task 10aa49e0d7734cfb9b3347b66da699ac)."
+            },
+            {
+                "id": "7c4a02ee-e425-43b2-bd49-640c33ee5b4e",
+                "createdAt": "2025-07-02T10:37:08.616000-07:00",
+                "message": "(service api) stopped 1 pending tasks."
+            },
+            {
+                "id": "9828520f-e386-4862-8331-f2426d673981",
+                "createdAt": "2025-07-02T10:35:57.126000-07:00",
+                "message": "(service api) has started 1 tasks: (task 6f4f163e855342a197639af189af03c2)."
+            },
+            {
+                "id": "5accebc9-5e8b-4de6-86ba-c3ad7626e72e",
+                "createdAt": "2025-07-02T10:35:16.283000-07:00",
+                "message": "(service api) has started 1 tasks: (task e69fd102bf0445a9b879e2830202ddb0)."
+            },
+            {
+                "id": "f7f2e148-9d98-4086-a8ed-92e978da8e26",
+                "createdAt": "2025-07-02T10:31:52.001000-07:00",
+                "message": "(service api) has started 1 tasks: (task df6ebb102ac94486a975c55659158db3)."
+            },
+            {
+                "id": "e3662a0a-282b-409f-81ad-999bd72fd876",
+                "createdAt": "2025-07-02T10:29:30.605000-07:00",
+                "message": "(service api) has started 1 tasks: (task 239500fd4fdf42c184d005efe8cd55b3)."
+            },
+            {
+                "id": "53b42343-490e-47de-90bc-e52e8609184e",
+                "createdAt": "2025-07-02T10:29:19.862000-07:00",
+                "message": "(service api) stopped 1 pending tasks."
+            },
+            {
+                "id": "e0bf9bf8-13ef-4e23-8cca-b2202aeb621b",
+                "createdAt": "2025-07-02T10:28:29.398000-07:00",
+                "message": "(service api) has started 1 tasks: (task e0947af7bf7f4328a24f3c92009e05a1)."
+            },
+            {
+                "id": "fa9a4efa-0fb7-4163-8715-71a9056322ac",
+                "createdAt": "2025-07-02T10:27:37.489000-07:00",
+                "message": "(service api) stopped 1 pending tasks."
+            },
+            {
+                "id": "9548998a-3642-470f-8f97-3d4ea57afca9",
+                "createdAt": "2025-07-02T10:26:27.452000-07:00",
+                "message": "(service api) has started 1 tasks: (task d2c0dc27005c48be8aee7b422fd51690)."
+            },
+            {
+                "id": "436d2daa-c549-4e7b-9fec-d74ebb5f4855",
+                "createdAt": "2025-07-02T10:24:55.862000-07:00",
+                "message": "(service api) has started 1 tasks: (task 4a50de5b4363448ea48af54c9e032cc5)."
+            },
+            {
+                "id": "90ac57a0-506b-419d-98dc-fcc87fb5c876",
+                "createdAt": "2025-07-02T10:22:03.899000-07:00",
+                "message": "(service api) has started 1 tasks: (task 70773a77976c48f3a5add88699c24b11)."
+            },
+            {
+                "id": "080c911d-f7a4-4e73-8f96-19a69f7bba46",
+                "createdAt": "2025-07-02T10:14:04.204000-07:00",
+                "message": "(service api) has started 1 tasks: (task c1f9c068548f4a2d926c8640e636fad1)."
+            },
+            {
+                "id": "93260b53-64d0-4a12-9790-6e1d4afeadfc",
+                "createdAt": "2025-07-02T10:10:49.582000-07:00",
+                "message": "(service api) has started 1 tasks: (task 720cf25cefec42ca94caff08c11728a9)."
+            },
+            {
+                "id": "6dbdbcdd-310f-49da-80ee-269b13f24c0e",
+                "createdAt": "2025-07-02T10:07:25.880000-07:00",
+                "message": "(service api) has started 1 tasks: (task ecf6532e3b03419089107693b2db92e3)."
+            },
+            {
+                "id": "74821abf-facd-4613-85b9-9a898e4cc87d",
+                "createdAt": "2025-07-02T10:03:51.261000-07:00",
+                "message": "(service api) has started 1 tasks: (task 1f97e61db0b148178f804c98f28a9894)."
+            }
+        ],
+        "createdAt": "2025-06-26T22:56:48.661000-07:00",
+        "placementConstraints": [],
+        "placementStrategy": [],
+        "networkConfiguration": {
+            "awsvpcConfiguration": {
+                "subnets": [
+                    "subnet-044c7900327079b34",
+                    "subnet-077b46dfaca235d22"
+                ],
+                "securityGroups": [
+                    "sg-0a0ed33155ed7b1ea"
+                ],
+                "assignPublicIp": "ENABLED"
+            }
+        },
+        "healthCheckGracePeriodSeconds": 60,
+        "schedulingStrategy": "REPLICA",
+        "deploymentController": {
+            "type": "ECS"
+        },
+        "createdBy": "arn:aws:iam::820242943150:user/ghostline",
+        "enableECSManagedTags": false,
+        "propagateTags": "NONE",
+        "enableExecuteCommand": false,
+        "availabilityZoneRebalancing": "DISABLED"
+    }
+}

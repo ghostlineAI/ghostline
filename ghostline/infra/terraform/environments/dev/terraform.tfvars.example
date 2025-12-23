@@ -1,0 +1,10 @@
+# Copy this file to terraform.tfvars and fill in your values
+
+# Email addresses for alerts
+security_alert_emails = ["security@example.com"]
+budget_alert_emails   = ["finance@example.com", "ops@example.com"]
+
+# Uncomment and modify if you need different values
+# aws_region = "us-east-1"
+# vpc_cidr   = "10.0.0.0/16"
+# availability_zones = ["us-east-1a", "us-east-1b"] 

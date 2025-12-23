@@ -1,0 +1,30 @@
+name: Markdown Lint
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  markdown-lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install markdownlint-cli
+      run: npm install -g markdownlint-cli
+      
+    - name: Run markdown linter
+      run: markdownlint '**/*.md' --ignore node_modules --config .markdownlint.json
+      
+    - name: Check for errors
+      if: failure()
+      run: echo "Markdown linting failed. Please fix the errors above." 

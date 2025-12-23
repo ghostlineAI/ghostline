@@ -1,0 +1,220 @@
+---
+
+## PHASE 0 — CONTEXT + DEEP DIVE
+Whenever you see a `{}` that is a variable for you to fill out.  
+**You MUST follow every checklist 100%.**
+
+
+**{FEATURE NAME}:**
+
+**Context:**  
+[ ]
+
+### Checklist for this phase (YOU MUST 100% FOLLOW THIS):
+
+1. Do a complete deep dive across the API and web repos, database schema, CI/CD setup, and recent commits related to this feature.
+2. Read the GhostLine Feature Development Blueprint from start to finish. Pay special attention to:
+   - "Backend Implementation"
+   - "Frontend Implementation"
+   - "Database Disaster Recovery"
+3. Trace the full request/data flow for this feature end-to-end, and document any open questions.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+
+---
+
+## PHASE 1 — MANUAL RDS BACKUP
+Whenever you see a `{}` that is a variable for you to fill out.  
+**You MUST follow every checklist 100%.**
+
+
+**{FEATURE NAME}:**
+
+**Context:**  
+[ ]
+
+### Checklist for this phase (YOU MUST 100% FOLLOW THIS):
+
+1. Take a manual RDS snapshot of the production database.
+   - Use a clear, timestamped name like: `pre-{FEATURE_NAME}-{initials}-{YYYYMMDD-HHMM}`
+   - Wait until the snapshot shows `available` in the AWS Console.
+   - Refer to the Blueprint's "Database Disaster Recovery" section and use the snapshot procedures shown there.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+
+---
+
+## PHASE 2 — IMPLEMENT THE FEATURE + WRITE TESTS
+Whenever you see a `{}` that is a variable for you to fill out.  
+**You MUST follow every checklist 100%.**
+
+
+**{FEATURE NAME}:**
+
+**Context:**  
+[ ]
+
+### Checklist for this phase (YOU MUST 100% FOLLOW THIS):
+
+1. Fully implement the `{FEATURE NAME}` feature across all relevant layers:
+   - Backend: Follow the Blueprint’s "Backend Implementation" section for models, migrations, endpoints, and schema structure.
+     - Use field names that match frontend expectations
+     - Always include a trailing slash on API routes
+     - Include all expected enum values
+     - Review and test your migrations thoroughly before moving forward
+   - Frontend: Follow the Blueprint’s "Frontend Implementation" section for types, client usage, and component integration.
+     - Ensure the view and download icons work with actual server responses
+   - You must follow naming conventions, folder layout, and architectural expectations.
+   - **If there is any possibility your code could drop, overwrite, or delete data — STOP AND CHECK WITH ME.**
+
+2. Write full, live end-to-end (E2E) Pytests for both the API and web repositories.
+   - **DO NOT USE MOCK TESTS.**
+   - Your tests must run against real environments, not stubs.
+   - Use the structure outlined in the Blueprint's "Testing Strategy" section.
+
+3. DO NOT run the tests yet — you will validate them in Phase 3.
+
+4. Push to the `main` branch using the commit message:  
+   `"PHASE 2 for feature {FEATURE NAME} complete."`
+
+5. If any Blueprint section needs updates based on what you encountered, fix it now.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+
+---
+
+## PHASE 3 — RUN & VALIDATE E2E TESTS
+Whenever you see a `{}` that is a variable for you to fill out.  
+**You MUST follow every checklist 100%.**
+
+
+**{FEATURE NAME}:**
+
+**Context:**  
+[ ]
+
+### Checklist for this phase (YOU MUST 100% FOLLOW THIS):
+
+1. Run all E2E tests from Phase 2 for both API and web.
+   - They must run against the live system.
+   - Validate file statuses, transitions, and user-visible behavior.
+
+2. Fix any failing tests and re-run until fully passing.
+
+3. Push to the `main` branch using the commit message:  
+   `"PHASE 3 for feature {FEATURE NAME} complete."`
+
+4. Document what passed or failed and update the Blueprint accordingly.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+
+---
+
+## PHASE 4 — ADD CI/CD TESTS
+Whenever you see a `{}` that is a variable for you to fill out.  
+**You MUST follow every checklist 100%.**
+
+
+**{FEATURE NAME}:**
+
+**Context:**  
+[ ]
+
+### Checklist for this phase (YOU MUST 100% FOLLOW THIS):
+
+1. Add or update CI/CD-level tests so that they:
+   - Run automatically in GitHub Actions
+   - Follow naming/layout conventions already present
+   - Verify the most critical behavior of `{FEATURE NAME}` end-to-end
+
+2. Confirm that your test is being picked up and executed in the CI/CD pipeline.
+
+3. Push to the `main` branch using the commit message:  
+   `"PHASE 4 for feature {FEATURE NAME} complete."`
+
+4. Document test coverage (and any known limitations) in the Blueprint.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+
+---
+
+## PHASE 5 — RUN CI/CD + VERIFY DEPLOYMENTS
+Whenever you see a `{}` that is a variable for you to fill out.  
+**You MUST follow every checklist 100%.**
+
+
+**{FEATURE NAME}:**
+
+**Context:**  
+[ ]
+
+### Checklist for this phase (YOU MUST 100% FOLLOW THIS):
+
+1. Push to `main` to trigger the CI/CD pipeline and confirm:
+   - All test suites run
+   - All CI/CD tests written in Phase 4 pass successfully
+   - GitHub Actions completes without failure
+
+2. Confirm both the API and web apps deploy correctly.  
+   - Use GitHub Actions logs, ECS console, and S3/CloudFront verification
+
+3. Visit the live app and confirm that `{FEATURE NAME}` is functional in production.
+
+4. If anything fails, fix it and repeat this checklist from step 1.
+
+5. Push any final fixes to the `main` branch using the commit message:  
+   `"PHASE 5 for feature {FEATURE NAME} complete."`
+
+6. Log all unexpected issues in the Blueprint so others don’t repeat them.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.
+
+---
+
+## PHASE 6 — FINAL VERIFICATION
+Whenever you see a `{}` that is a variable for you to fill out.  
+**You MUST follow every checklist 100%.**
+
+
+**{FEATURE NAME}:**
+
+**Context:**  
+[ ]
+
+### Checklist for this phase (YOU MUST 100% FOLLOW THIS):
+
+1. Do a final full-stack check:
+   - All E2E and CI/CD tests must pass
+   - Everything must be deployed cleanly
+   - The feature must work in the live environment
+   - **THIS IS YOUR LAST CHANCE TO GET IT RIGHT BEFORE I PERSONALLY OPEN THE UI AND TEST IT.**
+
+2. If anything breaks, fix it and restart this phase.
+
+3. Once it passes, push to the `main` branch using the commit message:  
+   `"PHASE 6 for feature {FEATURE NAME} complete."`
+
+4. Finalize your updates to the Blueprint with everything you learned.
+
+**Important:**
+
+- **DO NOT PERFORM ANY DATA MIGRATIONS OR ANY OPERATIONS THAT MIGHT ALTER THE SCHEMA, DELETE TABLES, OR DELETE DATA WITHOUT MY EXPLICIT CONSENT.**
+- Any destructive operation must be gated behind a `sudo` command that requires me to enter a password.

@@ -1,0 +1,602 @@
+terraform {
+  required_version = ">= 1.5.0"
+  
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+  
+  # Backend configured from bootstrap
+  backend "s3" {
+    bucket         = "ghostline-terraform-state-820242943150"
+    key            = "dev/terraform.tfstate"
+    region         = "us-west-2"
+    dynamodb_table = "ghostline-terraform-locks"
+    encrypt        = true
+    kms_key_id     = "arn:aws:kms:us-west-2:820242943150:key/de0480bb-1e42-4b2c-b61a-0d16ba6db385"
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+  
+  default_tags {
+    tags = {
+      Project     = var.project_name
+      Environment = var.environment
+      ManagedBy   = "Terraform"
+    }
+  }
+}
+
+# Provider for us-east-1 (required for CloudFront ACM certificates)
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+  
+  default_tags {
+    tags = {
+      Project     = var.project_name
+      Environment = var.environment
+      ManagedBy   = "Terraform"
+    }
+  }
+}
+
+# Data source for current AWS account
+data "aws_caller_identity" "current" {}
+
+# KMS Module
+module "kms" {
+  source = "../../modules/kms"
+  
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+}
+
+# Organization Module (only in management account)
+# module "organization" {
+#   source = "../../modules/organization"
+#   
+#   project_name     = var.project_name
+#   create_accounts  = false  # Set to true only if creating new accounts
+#   allowed_regions  = var.allowed_regions
+# }
+
+# VPC Module
+module "vpc" {
+  source = "../../modules/vpc"
+  
+  project_name       = var.project_name
+  environment        = var.environment
+  aws_region         = var.aws_region
+  vpc_cidr          = var.vpc_cidr
+  availability_zones = var.availability_zones
+  enable_nat_gateway = var.environment == "prod" ? true : false
+  enable_flow_logs   = true
+  kms_key_arn       = module.kms.logs_key_arn
+}
+
+# Security Module
+module "security" {
+  source = "../../modules/security"
+  
+  project_name          = var.project_name
+  environment           = var.environment
+  aws_region            = var.aws_region
+  security_alert_emails = var.security_alert_emails
+  kms_key_id           = module.kms.main_key_arn
+  enable_shield_advanced = false  # Shield Advanced costs $3000/month
+}
+
+# Budget Module
+module "budget" {
+  source = "../../modules/budget"
+  
+  project_name        = var.project_name
+  environment         = var.environment
+  budget_alert_emails = var.budget_alert_emails
+  
+  # Adjust these limits based on your expected usage
+  monthly_budget_limit = var.environment == "prod" ? 5000 : 500
+  bedrock_budget_limit = var.environment == "prod" ? 2000 : 200
+  s3_budget_limit      = var.environment == "prod" ? 500 : 50
+  ecs_budget_limit     = var.environment == "prod" ? 1000 : 100
+  rds_budget_limit     = var.environment == "prod" ? 500 : 50
+  
+  kms_key_id = module.kms.sns_key_arn
+}
+
+# Route 53 Module
+module "route53" {
+  source = "../../modules/route53"
+  
+  providers = {
+    aws.us_east_1 = aws.us_east_1
+  }
+  
+  domain_name         = var.domain_name
+  subdomain           = var.environment
+  environment         = var.environment
+  create_hosted_zone  = true  # Create the hosted zone for ghostline.ai
+  
+  # Enable CloudFront records now that CloudFront is created
+  create_cloudfront_records = true
+  cloudfront_domain_name    = module.frontend.cloudfront_domain_name
+  cloudfront_hosted_zone_id = module.frontend.cloudfront_hosted_zone_id
+}
+
+# Frontend Module
+module "frontend" {
+  source = "../../modules/frontend"
+  
+  project_name        = var.project_name
+  environment         = var.environment
+  # Re-enable custom domain now that DNS is configured
+  domain_name         = "${var.environment}.${var.domain_name}"
+  acm_certificate_arn = module.route53.certificate_arn
+  waf_web_acl_arn     = ""  # WAF for CloudFront must be in us-east-1
+}
+
+# S3 Buckets for application data
+resource "aws_s3_bucket" "source_materials" {
+  bucket = "${var.project_name}-${var.environment}-source-materials-${data.aws_caller_identity.current.account_id}"
+  
+  tags = {
+    Name = "${var.project_name}-${var.environment}-source-materials"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "source_materials" {
+  bucket = aws_s3_bucket.source_materials.id
+  
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "source_materials" {
+  bucket = aws_s3_bucket.source_materials.id
+  
+  rule {
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = module.kms.s3_key_arn
+      sse_algorithm     = "aws:kms"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "source_materials" {
+  bucket = aws_s3_bucket.source_materials.id
+  
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# S3 bucket for generated outputs
+resource "aws_s3_bucket" "outputs" {
+  bucket = "${var.project_name}-${var.environment}-outputs-${data.aws_caller_identity.current.account_id}"
+  
+  tags = {
+    Name = "${var.project_name}-${var.environment}-outputs"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "outputs" {
+  bucket = aws_s3_bucket.outputs.id
+  
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "outputs" {
+  bucket = aws_s3_bucket.outputs.id
+  
+  rule {
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = module.kms.s3_key_arn
+      sse_algorithm     = "aws:kms"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "outputs" {
+  bucket = aws_s3_bucket.outputs.id
+  
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# S3 bucket lifecycle policies
+resource "aws_s3_bucket_lifecycle_configuration" "source_materials" {
+  bucket = aws_s3_bucket.source_materials.id
+  
+  rule {
+    id     = "transition-to-ia"
+    status = "Enabled"
+    
+    filter {}
+    
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+    
+    transition {
+      days          = 90
+      storage_class = "GLACIER"
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "outputs" {
+  bucket = aws_s3_bucket.outputs.id
+  
+  rule {
+    id     = "expire-old-outputs"
+    status = "Enabled"
+    
+    filter {}
+    
+    expiration {
+      days = 90
+    }
+    
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
+
+# S3 bucket for ALB logs
+resource "aws_s3_bucket" "alb_logs" {
+  bucket = "${var.project_name}-${var.environment}-alb-logs-${data.aws_caller_identity.current.account_id}"
+  
+  tags = {
+    Name = "${var.project_name}-${var.environment}-alb-logs"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+  
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+data "aws_elb_service_account" "main" {}
+
+resource "aws_s3_bucket_policy" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = data.aws_elb_service_account.main.arn
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/alb/*"
+      }
+    ]
+  })
+}
+
+# ACM Certificate for ALB (in us-west-2)
+resource "aws_acm_certificate" "alb" {
+  domain_name       = "api.${var.environment}.${var.domain_name}"
+  validation_method = "DNS"
+  
+  tags = {
+    Name = "${var.project_name}-${var.environment}-alb-cert"
+  }
+  
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route53_record" "alb_cert_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.alb.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+  
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = module.route53.zone_id
+}
+
+resource "aws_acm_certificate_validation" "alb" {
+  certificate_arn         = aws_acm_certificate.alb.arn
+  validation_record_fqdns = [for record in aws_route53_record.alb_cert_validation : record.fqdn]
+}
+
+# ECS Module
+module "ecs" {
+  source = "../../modules/ecs"
+  
+  project_name       = var.project_name
+  environment        = var.environment
+  aws_region         = var.aws_region
+  vpc_id             = module.vpc.vpc_id
+  kms_key_arn        = module.kms.logs_key_arn
+  kms_key_s3_arn     = module.kms.s3_key_arn
+  use_spot           = var.environment != "prod"
+  log_retention_days = 7
+}
+
+# ALB Module
+module "alb" {
+  source = "../../modules/alb"
+  
+  project_name      = var.project_name
+  environment       = var.environment
+  public_subnet_ids = module.vpc.public_subnet_ids
+  security_group_id = module.vpc.alb_security_group_id
+  log_bucket_id     = aws_s3_bucket.alb_logs.id
+  certificate_arn   = aws_acm_certificate_validation.alb.certificate_arn
+  vpc_id            = module.vpc.vpc_id
+  domain_name       = "${var.environment}.${var.domain_name}"
+}
+
+# RDS Module
+module "rds" {
+  source = "../../modules/rds"
+  
+  project_name          = var.project_name
+  environment           = var.environment
+  vpc_id                = module.vpc.vpc_id
+  private_subnet_ids    = module.vpc.private_db_subnet_ids
+  ecs_security_group_id = module.vpc.ecs_tasks_security_group_id
+  rds_security_group_id = module.vpc.rds_security_group_id
+  kms_key_id            = module.kms.rds_key_arn
+  instance_class        = var.environment == "prod" ? "db.t3.small" : "db.t3.micro"
+  allocated_storage     = var.environment == "prod" ? 100 : 20
+}
+
+# Redis Module
+module "redis" {
+  source = "../../modules/redis"
+  
+  project_name          = var.project_name
+  environment           = var.environment
+  vpc_id                = module.vpc.vpc_id
+  private_subnet_ids    = module.vpc.private_app_subnet_ids
+  ecs_security_group_id = module.vpc.ecs_tasks_security_group_id
+  node_type             = var.environment == "prod" ? "cache.t3.small" : "cache.t3.micro"
+}
+
+# ECR repositories
+resource "aws_ecr_repository" "api" {
+  name                 = "${var.project_name}-api"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecr_repository" "worker" {
+  name                 = "${var.project_name}-worker"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+# ECS Task Definition for API
+resource "aws_ecs_task_definition" "api" {
+  family                   = "${var.project_name}-${var.environment}-api"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = 512
+  memory                   = 1024
+  execution_role_arn       = module.ecs.task_execution_role_arn
+  task_role_arn            = module.ecs.task_role_arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "api"
+      image     = "${aws_ecr_repository.api.repository_url}:latest"
+      cpu       = 512
+      memory    = 1024
+      essential = true
+      portMappings = [
+        {
+          containerPort = 8000
+          hostPort      = 8000
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = module.ecs.log_group_name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "api"
+        }
+      }
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
+        },
+        {
+          name      = "REDIS_URL"
+          valueFrom = aws_secretsmanager_secret.redis_url.arn
+        }
+      ]
+      environment = [
+        {
+          name  = "ENVIRONMENT"
+          value = var.environment
+        }
+      ]
+    }
+  ])
+}
+
+# ECS Service for API
+resource "aws_ecs_service" "api" {
+  name            = "api" # Use the short name to match existing service
+  cluster         = module.ecs.cluster_id
+  task_definition = aws_ecs_task_definition.api.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets         = module.vpc.private_app_subnet_ids
+    security_groups = [module.vpc.ecs_tasks_security_group_id]
+  }
+
+  load_balancer {
+    target_group_arn = module.alb.api_target_group_arn
+    container_name   = "api"
+    container_port   = 8000
+  }
+
+  health_check_grace_period_seconds = 60
+
+  depends_on = [module.alb]
+}
+
+# Create secrets for API configuration
+resource "aws_secretsmanager_secret" "database_url" {
+  name        = "${var.project_name}/${var.environment}/database-url"
+  description = "Database connection URL for ${var.project_name} ${var.environment}"
+  kms_key_id  = module.kms.secrets_key_arn
+}
+
+resource "aws_secretsmanager_secret_version" "database_url" {
+  secret_id = aws_secretsmanager_secret.database_url.id
+  secret_string = format(
+    "postgresql://%s:%s@%s/%s",
+    "ghostlineadmin",
+    module.rds.db_password,
+    module.rds.db_instance_endpoint,
+    "ghostline"
+  )
+  
+  depends_on = [module.rds]
+}
+
+resource "aws_secretsmanager_secret" "redis_url" {
+  name        = "${var.project_name}/${var.environment}/redis-url"
+  description = "Redis connection URL for ${var.project_name} ${var.environment}"
+  kms_key_id  = module.kms.secrets_key_arn
+}
+
+resource "aws_secretsmanager_secret_version" "redis_url" {
+  secret_id = aws_secretsmanager_secret.redis_url.id
+  secret_string = format(
+    "redis://%s:%s",
+    module.redis.primary_endpoint,
+    module.redis.port
+  )
+}
+
+# Create Route 53 record for API
+resource "aws_route53_record" "api" {
+  zone_id = module.route53.zone_id
+  name    = "api.${var.environment}"
+  type    = "A"
+
+  alias {
+    name                   = module.alb.dns_name
+    zone_id                = module.alb.zone_id
+    evaluate_target_health = true
+  }
+}
+
+# Outputs
+output "vpc_id" {
+  description = "The ID of the VPC"
+  value       = module.vpc.vpc_id
+}
+
+output "s3_source_materials_bucket" {
+  description = "The name of the source materials S3 bucket"
+  value       = aws_s3_bucket.source_materials.id
+}
+
+output "s3_outputs_bucket" {
+  description = "The name of the outputs S3 bucket"
+  value       = aws_s3_bucket.outputs.id
+}
+
+output "waf_web_acl_id" {
+  description = "The ID of the WAF Web ACL"
+  value       = module.security.waf_web_acl_id
+}
+
+output "frontend_s3_bucket" {
+  description = "The name of the frontend S3 bucket"
+  value       = module.frontend.s3_bucket_name
+}
+
+output "cloudfront_distribution_id" {
+  description = "The ID of the CloudFront distribution"
+  value       = module.frontend.cloudfront_distribution_id
+}
+
+output "cloudfront_domain_name" {
+  description = "The domain name of the CloudFront distribution"
+  value       = module.frontend.cloudfront_domain_name
+}
+
+output "route53_name_servers" {
+  description = "Name servers for the Route 53 hosted zone"
+  value       = module.route53.name_servers
+}
+
+output "ecs_cluster_name" {
+  description = "Name of the ECS cluster"
+  value       = module.ecs.cluster_name
+}
+
+output "alb_dns_name" {
+  description = "DNS name of the ALB"
+  value       = module.alb.dns_name
+}
+
+output "api_url" {
+  description = "URL for the API"
+  value       = "https://api.${var.environment}.${var.domain_name}"
+}
+
+output "rds_endpoint" {
+  description = "RDS instance endpoint"
+  value       = module.rds.db_instance_endpoint
+  sensitive   = true
+}
+
+output "redis_endpoint" {
+  description = "Redis cluster endpoint"
+  value       = module.redis.primary_endpoint
+  sensitive   = true
+}
+
+output "redis_port" {
+  description = "Redis cluster port"
+  value       = module.redis.port
+  sensitive   = true
+} 

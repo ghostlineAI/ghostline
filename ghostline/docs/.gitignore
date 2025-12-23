@@ -1,0 +1,36 @@
+# Build output
+/site/
+/build/
+/dist/
+/_build/
+
+# Node modules (if using documentation tools)
+/node_modules/
+package-lock.json
+yarn.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+~*
+
+# Documentation tools
+.docusaurus/
+.cache/
+
+# Generated files
+*.pdf
+!ui_audit.pdf
+
+# Logs
+*.log 

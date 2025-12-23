@@ -1,0 +1,22 @@
+# CODEOWNERS for GhostLine Agents Repository
+# This file defines the code owners for the agents repository
+
+# Default owners for everything in the repo
+* @ghostline/ml-team
+
+# Agent implementations
+/agents/ @ghostline/ml-engineers
+/orchestrator/ @ghostline/ml-engineers
+/prompts/ @ghostline/ml-engineers
+
+# Model configurations and evaluations
+/models/ @ghostline/ml-research
+/evaluations/ @ghostline/ml-research
+
+# Infrastructure and deployment
+/Dockerfile @ghostline/devops-team
+/.github/ @ghostline/devops-team
+
+# Documentation
+/README.md @ghostline/documentation-team
+/docs/ @ghostline/documentation-team 

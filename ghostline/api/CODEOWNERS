@@ -1,0 +1,23 @@
+# CODEOWNERS for GhostLine API Repository
+# This file defines the code owners for the API repository
+
+# Default owners for everything in the repo
+* @ghostline/api-team
+
+# API endpoints and business logic
+/app/api/ @ghostline/backend-team
+/app/models/ @ghostline/backend-team
+/app/services/ @ghostline/backend-team
+
+# Database and migrations
+/alembic/ @ghostline/database-team
+/app/db/ @ghostline/database-team
+
+# Configuration and deployment
+/Dockerfile @ghostline/devops-team
+/docker-compose.yml @ghostline/devops-team
+/.github/ @ghostline/devops-team
+
+# Documentation
+/README.md @ghostline/documentation-team
+/docs/ @ghostline/documentation-team 

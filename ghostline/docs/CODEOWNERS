@@ -1,0 +1,23 @@
+# CODEOWNERS for GhostLine Documentation Repository
+# This file defines the code owners for the documentation repository
+
+# Default owners for everything in the repo
+* @ghostline/documentation-team
+
+# Architecture Decision Records
+/adr/ @ghostline/architecture-team
+
+# API documentation
+/api-docs/ @ghostline/api-team
+
+# User guides
+/user-guides/ @ghostline/product-team
+
+# Developer documentation
+/developer-guides/ @ghostline/engineering-team
+
+# Operations runbooks
+/runbooks/ @ghostline/devops-team
+
+# CI/CD
+/.github/ @ghostline/devops-team 

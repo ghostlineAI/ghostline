@@ -1,0 +1,26 @@
+[
+  {
+    "name": "AWS_DEFAULT_REGION",
+    "value": "us-west-2"
+  },
+  {
+    "name": "USE_X_FORWARDED_PROTO",
+    "value": "true"
+  },
+  {
+    "name": "USE_X_FORWARDED_PORT",
+    "value": "true"
+  },
+  {
+    "name": "FORWARDED_ALLOW_IPS",
+    "value": "*"
+  },
+  {
+    "name": "USE_X_FORWARDED_HOST",
+    "value": "true"
+  },
+  {
+    "name": "ENVIRONMENT",
+    "value": "dev"
+  }
+]

@@ -1,0 +1,6 @@
+{
+    "serviceArns": [
+        "arn:aws:ecs:us-west-2:820242943150:service/ghostline-dev/api",
+        "arn:aws:ecs:us-west-2:820242943150:service/ghostline-dev/worker"
+    ]
+}

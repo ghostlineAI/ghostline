@@ -1,0 +1,83 @@
+name: Deploy Web to S3/CloudFront
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test -- --watchAll=false
+        env:
+          NEXT_PUBLIC_API_URL: https://api.dev.ghostline.ai/api/v1
+      
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.dev.ghostline.ai/api/v1
+      
+      - name: Prepare 404 page
+        run: |
+          # CloudFront expects 404.html, not _not-found.html
+          if [ -f "out/_not-found.html" ]; then
+            cp "out/_not-found.html" "out/404.html"
+          fi
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+      
+      - name: Deploy to S3
+        run: |
+          # Upload all files from out directory
+          aws s3 sync out/ s3://ghostline-dev-frontend-820242943150/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*.html" \
+            --exclude "*.json"
+          
+          # Upload HTML and JSON files with no cache
+          aws s3 sync out/ s3://ghostline-dev-frontend-820242943150/ \
+            --delete \
+            --cache-control "public, max-age=0, must-revalidate" \
+            --exclude "*" \
+            --include "*.html" \
+            --include "*.json"
+      
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id E3PE8KOGXI4I9Q \
+            --paths "/*"
+      
+      - name: Wait for invalidation
+        run: |
+          INVALIDATION_ID=$(aws cloudfront list-invalidations --distribution-id E3PE8KOGXI4I9Q --query 'InvalidationList.Items[0].Id' --output text)
+          aws cloudfront wait invalidation-completed --distribution-id E3PE8KOGXI4I9Q --id $INVALIDATION_ID
+      
+      - name: Deployment Summary
+        run: |
+          echo "✅ Deployment complete!"
+          echo "🌐 Site URL: https://dev.ghostline.ai"
+          echo "📦 S3 Bucket: ghostline-dev-frontend-820242943150"
+          echo "🚀 CloudFront Distribution: E3PE8KOGXI4I9Q" 

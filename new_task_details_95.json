@@ -1,0 +1,92 @@
+{
+    "tasks": [
+        {
+            "attachments": [
+                {
+                    "id": "8abb13ba-30a3-4cda-996f-5ad6e1ea658b",
+                    "type": "ElasticNetworkInterface",
+                    "status": "ATTACHED",
+                    "details": [
+                        {
+                            "name": "subnetId",
+                            "value": "subnet-077b46dfaca235d22"
+                        },
+                        {
+                            "name": "networkInterfaceId",
+                            "value": "eni-07ac314f8b5c664d8"
+                        },
+                        {
+                            "name": "macAddress",
+                            "value": "06:4b:0f:06:1e:27"
+                        },
+                        {
+                            "name": "privateDnsName",
+                            "value": "ip-10-0-1-214.us-west-2.compute.internal"
+                        },
+                        {
+                            "name": "privateIPv4Address",
+                            "value": "10.0.1.214"
+                        }
+                    ]
+                }
+            ],
+            "attributes": [
+                {
+                    "name": "ecs.cpu-architecture",
+                    "value": "x86_64"
+                }
+            ],
+            "availabilityZone": "us-west-2b",
+            "clusterArn": "arn:aws:ecs:us-west-2:820242943150:cluster/ghostline-dev",
+            "containers": [
+                {
+                    "containerArn": "arn:aws:ecs:us-west-2:820242943150:container/ghostline-dev/af272e2e29c04d63bd24e5dfe1c148ef/58244c0e-28e5-4caa-b5c0-187146bed280",
+                    "taskArn": "arn:aws:ecs:us-west-2:820242943150:task/ghostline-dev/af272e2e29c04d63bd24e5dfe1c148ef",
+                    "name": "api",
+                    "image": "820242943150.dkr.ecr.us-west-2.amazonaws.com/ghostline-api:fixed",
+                    "lastStatus": "PENDING",
+                    "networkInterfaces": [
+                        {
+                            "attachmentId": "8abb13ba-30a3-4cda-996f-5ad6e1ea658b",
+                            "privateIpv4Address": "10.0.1.214"
+                        }
+                    ],
+                    "healthStatus": "UNKNOWN",
+                    "cpu": "512",
+                    "memory": "1024"
+                }
+            ],
+            "cpu": "512",
+            "createdAt": "2025-07-03T10:15:01.233000-07:00",
+            "desiredStatus": "RUNNING",
+            "enableExecuteCommand": false,
+            "group": "service:api",
+            "healthStatus": "UNKNOWN",
+            "lastStatus": "PENDING",
+            "launchType": "FARGATE",
+            "memory": "1024",
+            "overrides": {
+                "containerOverrides": [
+                    {
+                        "name": "api"
+                    }
+                ],
+                "inferenceAcceleratorOverrides": []
+            },
+            "platformVersion": "1.4.0",
+            "platformFamily": "Linux",
+            "startedBy": "ecs-svc/1110266680869000456",
+            "tags": [],
+            "taskArn": "arn:aws:ecs:us-west-2:820242943150:task/ghostline-dev/af272e2e29c04d63bd24e5dfe1c148ef",
+            "taskDefinitionArn": "arn:aws:ecs:us-west-2:820242943150:task-definition/ghostline-dev-api:95",
+            "version": 2,
+            "ephemeralStorage": {
+                "sizeInGiB": 20
+            },
+            "fargateEphemeralStorage": {
+                "sizeInGiB": 20
+            }
+        }
+    ],
+    "failures": []
+}

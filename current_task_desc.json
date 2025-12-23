@@ -1,0 +1,100 @@
+{
+    "tasks": [
+        {
+            "attachments": [
+                {
+                    "id": "c84c8c72-2b37-4f44-b28b-7a33b8b6af06",
+                    "type": "ElasticNetworkInterface",
+                    "status": "ATTACHED",
+                    "details": [
+                        {
+                            "name": "subnetId",
+                            "value": "subnet-044c7900327079b34"
+                        },
+                        {
+                            "name": "networkInterfaceId",
+                            "value": "eni-0f1100bf640f3e53a"
+                        },
+                        {
+                            "name": "macAddress",
+                            "value": "02:97:56:28:d5:c3"
+                        },
+                        {
+                            "name": "privateDnsName",
+                            "value": "ip-10-0-0-109.us-west-2.compute.internal"
+                        },
+                        {
+                            "name": "privateIPv4Address",
+                            "value": "10.0.0.109"
+                        }
+                    ]
+                }
+            ],
+            "attributes": [
+                {
+                    "name": "ecs.cpu-architecture",
+                    "value": "x86_64"
+                }
+            ],
+            "availabilityZone": "us-west-2a",
+            "clusterArn": "arn:aws:ecs:us-west-2:820242943150:cluster/ghostline-dev",
+            "connectivity": "CONNECTED",
+            "connectivityAt": "2025-07-03T10:02:08.457000-07:00",
+            "containers": [
+                {
+                    "containerArn": "arn:aws:ecs:us-west-2:820242943150:container/ghostline-dev/1634230e00a24798ae08bd36415e3b37/9d6f867e-6341-4dfe-a37f-b489cf7c1458",
+                    "taskArn": "arn:aws:ecs:us-west-2:820242943150:task/ghostline-dev/1634230e00a24798ae08bd36415e3b37",
+                    "name": "api",
+                    "image": "820242943150.dkr.ecr.us-west-2.amazonaws.com/ghostline-api:715ee97cb5a00d5eab7bd1de870ddaef5229e3f3",
+                    "imageDigest": "sha256:49ec7ccd8bd1c5304c91b57c4900f251f8e073676eb38cd8e394a0979fd8997d",
+                    "runtimeId": "1634230e00a24798ae08bd36415e3b37-0946514567",
+                    "lastStatus": "RUNNING",
+                    "networkBindings": [],
+                    "networkInterfaces": [
+                        {
+                            "attachmentId": "c84c8c72-2b37-4f44-b28b-7a33b8b6af06",
+                            "privateIpv4Address": "10.0.0.109"
+                        }
+                    ],
+                    "healthStatus": "UNKNOWN",
+                    "cpu": "512",
+                    "memory": "1024"
+                }
+            ],
+            "cpu": "512",
+            "createdAt": "2025-07-03T10:02:04.730000-07:00",
+            "desiredStatus": "RUNNING",
+            "enableExecuteCommand": false,
+            "group": "service:api",
+            "healthStatus": "UNKNOWN",
+            "lastStatus": "RUNNING",
+            "launchType": "FARGATE",
+            "memory": "1024",
+            "overrides": {
+                "containerOverrides": [
+                    {
+                        "name": "api"
+                    }
+                ],
+                "inferenceAcceleratorOverrides": []
+            },
+            "platformVersion": "1.4.0",
+            "platformFamily": "Linux",
+            "pullStartedAt": "2025-07-03T10:02:26.862000-07:00",
+            "pullStoppedAt": "2025-07-03T10:02:34.228000-07:00",
+            "startedAt": "2025-07-03T10:02:47.758000-07:00",
+            "startedBy": "ecs-svc/4143573712160620837",
+            "tags": [],
+            "taskArn": "arn:aws:ecs:us-west-2:820242943150:task/ghostline-dev/1634230e00a24798ae08bd36415e3b37",
+            "taskDefinitionArn": "arn:aws:ecs:us-west-2:820242943150:task-definition/ghostline-dev-api:92",
+            "version": 5,
+            "ephemeralStorage": {
+                "sizeInGiB": 20
+            },
+            "fargateEphemeralStorage": {
+                "sizeInGiB": 20
+            }
+        }
+    ],
+    "failures": []
+}

@@ -1,0 +1,6 @@
+{
+    "taskArns": [
+        "arn:aws:ecs:us-west-2:820242943150:task/ghostline-dev/3183f795eb304c19aff7e285c2dfc2b1",
+        "arn:aws:ecs:us-west-2:820242943150:task/ghostline-dev/421e6ca210e743e7b9ae1ba70459c079"
+    ]
+}

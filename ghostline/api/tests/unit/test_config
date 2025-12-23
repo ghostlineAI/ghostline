@@ -1,0 +1,81 @@
+import os
+from unittest.mock import patch
+
+from app.core.config import Settings
+
+
+class TestAPIConfiguration:
+    """Test API configuration to prevent common bugs."""
+
+    def test_api_v1_prefix_is_set(self):
+        """Ensure API_V1_STR is correctly set to /api/v1."""
+        settings = Settings()
+        assert settings.API_V1_STR == "/api/v1"
+
+    def test_api_v1_prefix_no_duplicate(self):
+        """Ensure API_V1_STR doesn't have duplicate /api/v1."""
+        settings = Settings()
+        # Count occurrences of /api/v1
+        count = settings.API_V1_STR.count("/api/v1")
+        assert count == 1, f"API_V1_STR contains {count} occurrences of /api/v1"
+
+    def test_api_v1_prefix_no_trailing_slash(self):
+        """Ensure API_V1_STR doesn't end with a trailing slash."""
+        settings = Settings()
+        assert not settings.API_V1_STR.endswith("/"), "API_V1_STR should not end with /"
+
+    def test_api_v1_prefix_starts_with_slash(self):
+        """Ensure API_V1_STR starts with a slash."""
+        settings = Settings()
+        assert settings.API_V1_STR.startswith("/"), "API_V1_STR should start with /"
+
+    @patch.dict(os.environ, {"DATABASE_URL": "postgresql://user:pass@localhost/db"})
+    def test_database_url_from_env(self):
+        """Test that DATABASE_URL is read from environment."""
+        settings = Settings()
+        assert settings.DATABASE_URL == "postgresql://user:pass@localhost/db"
+
+    def test_cors_origins_includes_https(self):
+        """Ensure CORS origins include HTTPS URLs in production."""
+        settings = Settings()
+        cors_origins = settings.BACKEND_CORS_ORIGINS
+
+        # Check that we have some CORS origins
+        assert len(cors_origins) > 0, "BACKEND_CORS_ORIGINS should not be empty"
+
+        # In production, all non-localhost origins should be HTTPS
+        for origin in cors_origins:
+            if "localhost" not in origin and "127.0.0.1" not in origin:
+                assert origin.startswith("https://"), \
+                    f"Non-localhost origin {origin} should use HTTPS"
+
+    def test_cors_origins_no_trailing_slash(self):
+        """Ensure CORS origins don't have trailing slashes."""
+        settings = Settings()
+        cors_origins = settings.BACKEND_CORS_ORIGINS
+
+        for origin in cors_origins:
+            assert not origin.endswith("/"), \
+                f"CORS origin {origin} should not end with /"
+
+    @patch.dict(os.environ, {"ENVIRONMENT": "production"})
+    def test_production_environment_settings(self):
+        """Test production-specific settings."""
+        settings = Settings()
+
+        # In production, debug should be false
+        assert settings.ENVIRONMENT == "production"
+        # Add more production-specific checks as needed
+
+    def test_jwt_secret_key_exists(self):
+        """Ensure JWT secret key is set."""
+        settings = Settings()
+        assert settings.SECRET_KEY, "SECRET_KEY must be set"
+        assert len(settings.SECRET_KEY) >= 32, \
+            "SECRET_KEY should be at least 32 characters"
+
+    def test_api_title_and_version(self):
+        """Test API metadata."""
+        settings = Settings()
+        assert settings.PROJECT_NAME
+        assert settings.VERSION

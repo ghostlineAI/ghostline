@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.eggs/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+*.egg
+coverage/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Uploads and local storage
+uploads/
+local_storage/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Lock files (keep package-lock.json, poetry.lock)
+# But ignore some temp lock files
+*.lock.tmp
+
+# Build info
+tsconfig.tsbuildinfo
+
+# Misc
+*.bak
+*.backup

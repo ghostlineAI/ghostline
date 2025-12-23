@@ -1,0 +1,27 @@
+   ┌────────────────────┐
+   │  React Frontend     │
+   └────────────────────┘
+             │
+             ▼  HTTPS
+   ┌────────────────────┐
+   │ Load Balancer (ALB)│
+   └────────────────────┘
+             │
+             ▼  HTTP
+   ┌────────────────────┐
+   │  FastAPI App (API) │
+   └────────────────────┘
+     │     │     │     │
+     ▼     ▼     ▼     ▼
+PostgreSQL Redis   S3  External APIs
+   (data) (queue) (files) (LLMs, vendors)
+             ▲
+             │
+   ┌────────────────────┐
+   │  Worker Service     │
+   │ (async job runner)  │
+   └────────────────────┘
+             │
+             ▼
+       External APIs
+     (LLMs, vendors, etc.)

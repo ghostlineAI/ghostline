@@ -1,0 +1,44 @@
+{
+  "family": "ghostline-dev-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::820242943150:role/ghostline-dev-ecs-task-execution",
+  "taskRoleArn": "arn:aws:iam::820242943150:role/ghostline-dev-ecs-task",
+  "containerDefinitions": [
+    {
+      "name": "worker",
+      "image": "820242943150.dkr.ecr.us-west-2.amazonaws.com/ghostline-agents:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "dev"
+        },
+        {
+          "name": "AWS_DEFAULT_REGION",
+          "value": "us-west-2"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-west-2:820242943150:secret:ghostline/dev/database-url-618QtU"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-west-2:820242943150:secret:ghostline/dev/redis-url-PmsV54"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ghostline-dev",
+          "awslogs-region": "us-west-2",
+          "awslogs-stream-prefix": "worker"
+        }
+      }
+    }
+  ]
+} 

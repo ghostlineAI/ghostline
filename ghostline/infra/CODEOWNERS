@@ -1,0 +1,25 @@
+# CODEOWNERS for GhostLine Infrastructure Repository
+# This file defines the code owners for the infrastructure repository
+
+# Default owners for everything in the repo
+* @ghostline/infrastructure-team
+
+# Terraform modules
+/terraform/ @ghostline/devops-team
+/modules/ @ghostline/devops-team
+
+# Kubernetes configurations
+/k8s/ @ghostline/platform-team
+/helm/ @ghostline/platform-team
+
+# CI/CD pipelines
+/.github/ @ghostline/devops-team
+/scripts/ @ghostline/devops-team
+
+# Security and compliance
+/security/ @ghostline/security-team
+/compliance/ @ghostline/security-team
+
+# Documentation
+/README.md @ghostline/documentation-team
+/docs/ @ghostline/documentation-team 

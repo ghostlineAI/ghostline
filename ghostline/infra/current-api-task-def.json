@@ -1,0 +1,132 @@
+{
+    "taskDefinition": {
+        "taskDefinitionArn": "arn:aws:ecs:us-west-2:820242943150:task-definition/ghostline-dev-api:35",
+        "containerDefinitions": [
+            {
+                "name": "api",
+                "image": "820242943150.dkr.ecr.us-west-2.amazonaws.com/ghostline-api:6082b465dca7877a4ea4a56f278d88fca3734352",
+                "cpu": 0,
+                "portMappings": [
+                    {
+                        "containerPort": 8000,
+                        "hostPort": 8000,
+                        "protocol": "tcp"
+                    }
+                ],
+                "essential": true,
+                "environment": [
+                    {
+                        "name": "AWS_DEFAULT_REGION",
+                        "value": "us-west-2"
+                    },
+                    {
+                        "name": "USE_X_FORWARDED_PROTO",
+                        "value": "true"
+                    },
+                    {
+                        "name": "USE_X_FORWARDED_PORT",
+                        "value": "true"
+                    },
+                    {
+                        "name": "FORWARDED_ALLOW_IPS",
+                        "value": "*"
+                    },
+                    {
+                        "name": "USE_X_FORWARDED_HOST",
+                        "value": "true"
+                    },
+                    {
+                        "name": "ENVIRONMENT",
+                        "value": "dev"
+                    }
+                ],
+                "mountPoints": [],
+                "volumesFrom": [],
+                "secrets": [
+                    {
+                        "name": "DATABASE_URL",
+                        "valueFrom": "arn:aws:secretsmanager:us-west-2:820242943150:secret:ghostline/dev/database-url"
+                    },
+                    {
+                        "name": "REDIS_URL",
+                        "valueFrom": "arn:aws:secretsmanager:us-west-2:820242943150:secret:ghostline/dev/redis-url"
+                    }
+                ],
+                "logConfiguration": {
+                    "logDriver": "awslogs",
+                    "options": {
+                        "awslogs-group": "/ecs/ghostline-dev",
+                        "awslogs-region": "us-west-2",
+                        "awslogs-stream-prefix": "api"
+                    }
+                },
+                "healthCheck": {
+                    "command": [
+                        "CMD-SHELL",
+                        "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"
+                    ],
+                    "interval": 30,
+                    "timeout": 5,
+                    "retries": 3,
+                    "startPeriod": 60
+                },
+                "systemControls": []
+            }
+        ],
+        "family": "ghostline-dev-api",
+        "taskRoleArn": "arn:aws:iam::820242943150:role/ghostline-dev-ecs-task",
+        "executionRoleArn": "arn:aws:iam::820242943150:role/ghostline-dev-ecs-task-execution",
+        "networkMode": "awsvpc",
+        "revision": 35,
+        "volumes": [],
+        "status": "ACTIVE",
+        "requiresAttributes": [
+            {
+                "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+            },
+            {
+                "name": "ecs.capability.execution-role-awslogs"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.ecr-auth"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+            },
+            {
+                "name": "ecs.capability.secrets.asm.environment-variables"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.task-iam-role"
+            },
+            {
+                "name": "ecs.capability.container-health-check"
+            },
+            {
+                "name": "ecs.capability.execution-role-ecr-pull"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+            },
+            {
+                "name": "ecs.capability.task-eni"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.29"
+            }
+        ],
+        "placementConstraints": [],
+        "compatibilities": [
+            "EC2",
+            "FARGATE"
+        ],
+        "requiresCompatibilities": [
+            "FARGATE"
+        ],
+        "cpu": "512",
+        "memory": "1024",
+        "registeredAt": "2025-06-29T13:30:08.597000-07:00",
+        "registeredBy": "arn:aws:iam::820242943150:user/ghostline"
+    },
+    "tags": []
+}

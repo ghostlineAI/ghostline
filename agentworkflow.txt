@@ -1,0 +1,31 @@
+- Writer
+- True to the person's data
+- True to the voice of the person
+- The entire narration should actually be cohesive (consistent story arc is incredibly important and yet hard to achieve)
+- It should be a compelling story that other people actually want to read
+- True to the person's ask: length, initial ask
+- Feedback agent
+
+
+WriterAgent -  Does all the writing.  Does this in phases depending on where we're at and what the 
+
+AmbiguityAgent - like if there's anything ambiguous about the materials.  Timelines are probably especially challenging to get right here and disentangle.  But there's a lot of other stuff too.  This agent should be responsible for ensuring the written material reflects reality (and is not tripped up by like timelines).  Btw, if the AmbiguityAgent detects anything that it isn't quite sure about, we should ask the reader. 
+
+VoiceAgent - It should actually sound like what the person would write.  Voice here doesn't refer to audio, it's just like does this "sound" like them. 
+
+NarrationAgent - Ensures that the book has a compelling story that other people actually want to read. 
+
+StoryarcAgent - A long form agent that ensures story arc makes sense, it sticks with the ask of the 
+person.
+
+FeedbackAgent - There should be multiple trigger points where we pause writing in order to get feedback from human (if AmbiguityAgent isn't quite sure about something), after the writer agent has finished its current phase it will hear back from WriterAgent, VoiceAgent can send back a sample every once in awhile to align on "hey does this sound like you, if not what would sound more like you", StoryarcAgent can ask the human "hey does this storyline look right to you", FinalcheckAgent makes the determination of saying "i think we're ready to show what we produced" and sends along to the FeedbackAgent to show the human for review. 
+
+FactcheckerAgent - checks for whether the data the writer has provided is accurate.  If the agent sees that it is not, it kicks back to the FeedbackAgent.
+
+SafetycheckerAgent - No neo nazi, hate speech, etc... --> outsourced to AetherLab?
+
+FinalcheckAgent - Takes in all feedback, every other requirement from the human in order to see if we've done everything we need.  True to the person's ask: length, initial ask, any feedback received along the way. 
+
+
+
+

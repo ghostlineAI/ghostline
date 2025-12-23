@@ -1,0 +1,102 @@
+{
+    "tasks": [
+        {
+            "attachments": [
+                {
+                    "id": "3a68b60b-1552-4950-b2c7-841b1a261758",
+                    "type": "ElasticNetworkInterface",
+                    "status": "DELETED",
+                    "details": [
+                        {
+                            "name": "subnetId",
+                            "value": "subnet-0b4893c29201af7c5"
+                        },
+                        {
+                            "name": "networkInterfaceId",
+                            "value": "eni-04be53c2b57ad8e47"
+                        },
+                        {
+                            "name": "macAddress",
+                            "value": "06:9e:8e:aa:9c:91"
+                        },
+                        {
+                            "name": "privateDnsName",
+                            "value": "ip-10-0-11-241.us-west-2.compute.internal"
+                        },
+                        {
+                            "name": "privateIPv4Address",
+                            "value": "10.0.11.241"
+                        }
+                    ]
+                }
+            ],
+            "attributes": [
+                {
+                    "name": "ecs.cpu-architecture",
+                    "value": "x86_64"
+                }
+            ],
+            "availabilityZone": "us-west-2b",
+            "clusterArn": "arn:aws:ecs:us-west-2:820242943150:cluster/ghostline-dev",
+            "connectivity": "CONNECTED",
+            "connectivityAt": "2025-07-03T09:43:37.729000-07:00",
+            "containers": [
+                {
+                    "containerArn": "arn:aws:ecs:us-west-2:820242943150:container/ghostline-dev/3183f795eb304c19aff7e285c2dfc2b1/d448e9b7-f0ae-46f0-bce3-de4eae55b394",
+                    "taskArn": "arn:aws:ecs:us-west-2:820242943150:task/ghostline-dev/3183f795eb304c19aff7e285c2dfc2b1",
+                    "name": "api",
+                    "image": "820242943150.dkr.ecr.us-west-2.amazonaws.com/ghostline-api:715ee97cb5a00d5eab7bd1de870ddaef5229e3f3",
+                    "runtimeId": "3183f795eb304c19aff7e285c2dfc2b1-0946514567",
+                    "lastStatus": "STOPPED",
+                    "networkInterfaces": [
+                        {
+                            "attachmentId": "3a68b60b-1552-4950-b2c7-841b1a261758",
+                            "privateIpv4Address": "10.0.11.241"
+                        }
+                    ],
+                    "healthStatus": "UNKNOWN",
+                    "cpu": "512",
+                    "memory": "1024"
+                }
+            ],
+            "cpu": "512",
+            "createdAt": "2025-07-03T09:43:34.079000-07:00",
+            "desiredStatus": "STOPPED",
+            "enableExecuteCommand": false,
+            "executionStoppedAt": "2025-07-03T09:46:13.044000-07:00",
+            "group": "service:api",
+            "healthStatus": "UNKNOWN",
+            "lastStatus": "STOPPED",
+            "launchType": "FARGATE",
+            "memory": "1024",
+            "overrides": {
+                "containerOverrides": [
+                    {
+                        "name": "api"
+                    }
+                ],
+                "inferenceAcceleratorOverrides": []
+            },
+            "platformVersion": "1.4.0",
+            "platformFamily": "Linux",
+            "pullStartedAt": "2025-07-03T09:43:49.787000-07:00",
+            "pullStoppedAt": "2025-07-03T09:43:49.798000-07:00",
+            "startedBy": "ecs-svc/1250727879753416091",
+            "stopCode": "TaskFailedToStart",
+            "stoppedAt": "2025-07-03T09:46:57.953000-07:00",
+            "stoppedReason": "ResourceInitializationError: unable to pull secrets or registry auth: unable to retrieve secret from asm: There is a connection issue between the task and AWS Secrets Manager. Check your task network configuration. failed to fetch secret arn:aws:secretsmanager:us-west-2:820242943150:secret:ghostline/dev/database-url-618QtU from secrets manager: RequestCanceled: request context canceled caused by: context deadline exceeded",
+            "stoppingAt": "2025-07-03T09:46:23.089000-07:00",
+            "tags": [],
+            "taskArn": "arn:aws:ecs:us-west-2:820242943150:task/ghostline-dev/3183f795eb304c19aff7e285c2dfc2b1",
+            "taskDefinitionArn": "arn:aws:ecs:us-west-2:820242943150:task-definition/ghostline-dev-api:92",
+            "version": 4,
+            "ephemeralStorage": {
+                "sizeInGiB": 20
+            },
+            "fargateEphemeralStorage": {
+                "sizeInGiB": 20
+            }
+        }
+    ],
+    "failures": []
+}

@@ -1,0 +1,22 @@
+category,name,license,stars,last_commit,fit_score,latency_ms,cost_per_1k_tokens,url,description
+Agentic Frameworks,langgraph,MIT License,14823,2025-06-26,100,N/A,N/A,https://github.com/langchain-ai/langgraph,Build resilient language agents as graphs.
+Agentic Frameworks,autogen,Creative Commons Attribution 4.0 International,46501,2025-06-26,60,N/A,N/A,https://github.com/microsoft/autogen,A programming framework for agentic AI 🤖 PyPi: autogen-agentchat Discord: https://aka.ms/autogen-discord Office Hour: https://aka.ms/autogen-officehour
+Agentic Frameworks,dspy,MIT License,25850,2025-06-26,100,N/A,N/A,https://github.com/stanfordnlp/dspy,DSPy: The framework for programming—not prompting—language models
+Agentic Frameworks,llama_index,MIT License,42618,2025-06-26,100,N/A,N/A,https://github.com/run-llama/llama_index,LlamaIndex is the leading framework for building LLM-powered agents over your data.
+Agentic Frameworks,crewAI,MIT License,33400,2025-06-26,100,N/A,N/A,https://github.com/crewAIInc/crewAI,"Framework for orchestrating role-playing, autonomous AI agents. By fostering collaborative intelligence, CrewAI empowers agents to work together seamlessly, tackling complex tasks."
+AI & Data Processing,unstructured,Apache License 2.0,11736,2025-06-26,60,N/A,N/A,https://github.com/Unstructured-IO/unstructured,"Convert documents to structured data effortlessly. Unstructured is open-source ETL solution for transforming complex documents into clean, structured formats for language models.  Visit our website to learn more about our enterprise grade Platform product for production grade workflows, partitioning, enrichments, chunking and embedding."
+AI & Data Processing,sentence-transformers,Apache License 2.0,16997,2025-06-11,60,N/A,N/A,https://github.com/UKPLab/sentence-transformers,State-of-the-Art Text Embeddings
+AI & Data Processing,GPTCache,MIT License,7604,2024-09-18,55,N/A,N/A,https://github.com/zilliztech/GPTCache,Semantic cache for LLMs. Fully integrated with LangChain and llama_index. 
+AI & Data Processing,langfuse,Other,13094,2025-06-26,60,N/A,N/A,https://github.com/langfuse/langfuse,"🪢 Open source LLM engineering platform: LLM Observability, metrics, evals, prompt management, playground, datasets. Integrates with OpenTelemetry, Langchain, OpenAI SDK, LiteLLM, and more. 🍊YC W23 "
+AI & Data Processing,dramatiq,GNU Lesser General Public License v3.0,4694,2025-06-23,45,N/A,N/A,https://github.com/Bogdanp/dramatiq,A fast and reliable background task processing library for Python 3.
+Frontend (Web),zustand,MIT License,53131,2025-06-26,100,N/A,N/A,https://github.com/pmndrs/zustand,🐻 Bear necessities for state management in React
+Frontend (Web),tiptap,MIT License,31138,2025-06-26,100,N/A,N/A,https://github.com/ueberdosis/tiptap,The headless rich text editor framework for web artisans.
+Frontend (Web),query,MIT License,45639,2025-06-26,100,N/A,N/A,https://github.com/TanStack/query,"🤖 Powerful asynchronous state management, server-state utilities and data fetching for the web. TS/JS, React Query, Solid Query, Svelte Query and Vue Query."
+Backend (API),typer,MIT License,17329,2025-06-23,100,N/A,N/A,https://github.com/fastapi/typer,"Typer, build great CLIs. Easy to code. Based on Python type hints."
+Backend (API),pydantic-settings,MIT License,958,2025-06-24,70,N/A,N/A,https://github.com/pydantic/pydantic-settings,Settings management using pydantic
+Developer Experience,pre-commit,MIT License,13929,2025-06-24,100,N/A,N/A,https://github.com/pre-commit/pre-commit,A framework for managing and maintaining multi-language pre-commit hooks.
+Developer Experience,ruff,MIT License,40369,2025-06-26,100,N/A,N/A,https://github.com/astral-sh/ruff,"An extremely fast Python linter and code formatter, written in Rust."
+Developer Experience,eslint,MIT License,26036,2025-06-26,100,N/A,N/A,https://github.com/eslint/eslint,Find and fix problems in your JavaScript code.
+Language Model,GPT-4o,Proprietary,N/A,N/A,N/A,1500,0.0075,N/A,Benchmark data for GPT-4o
+Language Model,Claude 3 Haiku,Proprietary,N/A,N/A,N/A,800,0.00025,N/A,Benchmark data for Claude 3 Haiku
+Language Model,Mixtral-8x22B,Proprietary,N/A,N/A,N/A,2500,0.0007,N/A,Benchmark data for Mixtral-8x22B

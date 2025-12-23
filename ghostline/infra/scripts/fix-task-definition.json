@@ -1,0 +1,54 @@
+{
+  "family": "ghostline-dev-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::820242943150:role/ghostline-dev-ecs-task-execution",
+  "taskRoleArn": "arn:aws:iam::820242943150:role/ghostline-dev-ecs-task",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "820242943150.dkr.ecr.us-west-2.amazonaws.com/ghostline-api:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "dev"
+        },
+        {
+          "name": "AWS_DEFAULT_REGION",
+          "value": "us-west-2"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "postgresql://ghostline:ghostline123!@ghostline-dev.cpygckmsmh2k.us-west-2.rds.amazonaws.com:5432/ghostline"
+        },
+        {
+          "name": "REDIS_URL",
+          "value": "redis://ghostline-dev.xntopp.0001.usw2.cache.amazonaws.com:6379"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ghostline-dev",
+          "awslogs-region": "us-west-2",
+          "awslogs-stream-prefix": "api"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+} 
