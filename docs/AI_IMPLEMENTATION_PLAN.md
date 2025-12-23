@@ -1,6 +1,37 @@
 # GhostLine AI Implementation Plan
 
-**Last Updated**: Based on E2E System Tests (29/29 tests passed)
+**Last Updated**: Dec 23, 2025 - Added LangGraph architecture decision
+
+---
+
+## Architecture Decision: LangGraph + Bounded Agent Conversations
+
+Based on analysis, we're using **LangGraph as the backbone** with agent "talk" happening inside **controlled subgraphs**:
+
+### Why LangGraph (not AutoGen as primary)
+- ✅ Durable state + persistence for jobs that take minutes/hours
+- ✅ Pause/resume for user feedback (hours/days between interactions)
+- ✅ Job recovery after worker restarts
+- ✅ Structured outputs + audit logs
+- ✅ Strict cost/latency controls per step
+
+### Architecture Pattern
+```
+LangGraph Outer Graph (production state machine):
+  Ingest → Embed → OutlineSubgraph → UserApproveOutline → 
+  DraftChapterSubgraph → UserEdits → Finalize → Export
+
+Inside OutlineSubgraph / DraftChapterSubgraph:
+  - Multi-agent conversation loop (Planner ↔ Critic ↔ Editor)
+  - Hard limits: max turns, max tokens, max cost, stop conditions
+  - Output: structured artifact {outline, open_questions, rationale, risks}
+```
+
+### Where Agents "Talk" (Bounded Subgraphs)
+1. **Outline creation**: Planner ↔ Critic ↔ Marketability agent → converge on outline
+2. **Chapter revision loop**: Drafter ↔ Style ↔ Continuity → negotiate changes
+3. **Conflict resolution**: Timeline agent flags → Drafter proposes fixes → Orchestrator chooses
+4. **Idea generation (fiction)**: Worldbuilding ↔ Character-arc ↔ Plot-beats
 
 ---
 

@@ -169,28 +169,34 @@ def test_storage_service():
     return True
 
 
-@test("GenerationService is EMPTY (gap)", "3-Services")
-def test_generation_service_empty():
+@test("GenerationService implemented", "3-Services")
+def test_generation_service_implemented():
     from app.main import app
     from app.services.generation import GenerationService
     import inspect
     
-    source = inspect.getsource(GenerationService)
-    if "pass" in source and len(source.strip().split('\n')) <= 2:
-        return True  # This confirms the gap
-    return "GenerationService has content (update plan)"
+    methods = [m for m in dir(GenerationService) if not m.startswith('_')]
+    required = ["generate_outline", "generate_chapter", "analyze_voice"]
+    missing = [m for m in required if m not in methods]
+    
+    if missing:
+        return f"GenerationService missing methods: {missing}"
+    return True
 
 
-@test("ProcessingService is EMPTY (gap)", "3-Services")
-def test_processing_service_empty():
+@test("ProcessingService implemented", "3-Services")
+def test_processing_service_implemented():
     from app.main import app
     from app.services.processing import ProcessingService
     import inspect
     
-    source = inspect.getsource(ProcessingService)
-    if "pass" in source and len(source.strip().split('\n')) <= 2:
-        return True  # This confirms the gap
-    return "ProcessingService has content (update plan)"
+    methods = [m for m in dir(ProcessingService) if not m.startswith('_')]
+    required = ["process_source_material", "create_voice_profile", "find_relevant_chunks"]
+    missing = [m for m in required if m not in methods]
+    
+    if missing:
+        return f"ProcessingService missing methods: {missing}"
+    return True
 
 
 # ============================================================================
@@ -252,8 +258,8 @@ def test_source_materials_endpoints():
     return True
 
 
-@test("Generation endpoint MISSING (gap)", "4-API")
-def test_generation_endpoint_missing():
+@test("Generation endpoint exists", "4-API")
+def test_generation_endpoint_exists():
     from app.main import app
     
     routes = [r.path for r in app.routes]
@@ -261,13 +267,13 @@ def test_generation_endpoint_missing():
     # Frontend calls: POST /projects/{id}/generate
     generation_routes = [r for r in routes if "generate" in r.lower()]
     
-    if generation_routes:
-        return f"Found generation routes (update plan): {generation_routes}"
-    return True  # Confirms the gap
+    if not generation_routes:
+        return "Generation endpoint missing"
+    return True
 
 
-@test("Outline generation endpoint MISSING (gap)", "4-API")
-def test_outline_generation_missing():
+@test("Outline generation endpoint exists", "4-API")
+def test_outline_generation_exists():
     from app.main import app
     
     routes = [(r.path, list(r.methods) if hasattr(r, 'methods') else []) for r in app.routes]
@@ -275,9 +281,9 @@ def test_outline_generation_missing():
     # Check for POST to outline (generation)
     outline_posts = [r for r in routes if "outline" in r[0].lower() and "POST" in r[1]]
     
-    if outline_posts:
-        return f"Found outline generation routes (update plan): {outline_posts}"
-    return True  # Confirms the gap
+    if not outline_posts:
+        return "Outline generation endpoint missing"
+    return True
 
 
 # ============================================================================
@@ -293,66 +299,77 @@ def test_celery_config():
     return True
 
 
-@test("Task routes defined but tasks MISSING (gap)", "5-Celery")
-def test_celery_tasks_missing():
-    from app.core.celery_app import celery_app
-    
-    # Check if task routes are defined
-    routes = celery_app.conf.task_routes or {}
-    
-    expected_tasks = [
-        "app.tasks.process_source_material",
-        "app.tasks.generate_chapter",
-        "app.tasks.analyze_voice",
-    ]
+@test("Tasks module exists", "5-Celery")
+def test_celery_tasks_exist():
+    import os
     
     # Check if tasks directory exists
-    import os
     tasks_dir = os.path.join(os.path.dirname(__file__), '..', 'ghostline', 'api', 'app', 'tasks')
-    if os.path.exists(tasks_dir):
-        return f"Tasks directory exists at {tasks_dir} (update plan)"
+    if not os.path.exists(tasks_dir):
+        return "Tasks directory missing"
     
-    return True  # Confirms tasks are referenced but don't exist
+    # Check for generation.py
+    gen_file = os.path.join(tasks_dir, 'generation.py')
+    if not os.path.exists(gen_file):
+        return "generation.py task file missing"
+    
+    return True
 
 
 # ============================================================================
 # CATEGORY 6: AI/LLM Integration
 # ============================================================================
 
-@test("No LLM client service exists (gap)", "6-AI")
-def test_no_llm_client():
+@test("LLM client service exists", "6-AI")
+def test_llm_client_exists():
     import os
     
     services_dir = os.path.join(os.path.dirname(__file__), '..', 'ghostline', 'api', 'app', 'services')
-    llm_files = [f for f in os.listdir(services_dir) if 'llm' in f.lower() or 'openai' in f.lower() or 'anthropic' in f.lower()]
+    llm_file = os.path.join(services_dir, 'llm.py')
     
-    if llm_files:
-        return f"Found LLM service files (update plan): {llm_files}"
-    return True  # Confirms the gap
+    if not os.path.exists(llm_file):
+        return "LLM service file missing"
+    
+    # Verify it has the expected classes
+    with open(llm_file, 'r') as f:
+        content = f.read()
+    if 'LLMService' not in content or 'AnthropicClient' not in content:
+        return "LLM service missing expected classes"
+    return True
 
 
-@test("No embedding service exists (gap)", "6-AI")
-def test_no_embedding_service():
+@test("Embedding service exists", "6-AI")
+def test_embedding_service_exists():
     import os
     
     services_dir = os.path.join(os.path.dirname(__file__), '..', 'ghostline', 'api', 'app', 'services')
-    embed_files = [f for f in os.listdir(services_dir) if 'embed' in f.lower() or 'vector' in f.lower()]
+    embed_file = os.path.join(services_dir, 'embeddings.py')
     
-    if embed_files:
-        return f"Found embedding service files (update plan): {embed_files}"
-    return True  # Confirms the gap
+    if not os.path.exists(embed_file):
+        return "Embedding service file missing"
+    
+    with open(embed_file, 'r') as f:
+        content = f.read()
+    if 'EmbeddingService' not in content or 'embed_text' not in content:
+        return "Embedding service missing expected classes/methods"
+    return True
 
 
-@test("No document processor exists (gap)", "6-AI")
-def test_no_doc_processor():
+@test("Document processor exists", "6-AI")
+def test_doc_processor_exists():
     import os
     
     services_dir = os.path.join(os.path.dirname(__file__), '..', 'ghostline', 'api', 'app', 'services')
-    proc_files = [f for f in os.listdir(services_dir) if 'document' in f.lower() or 'unstructured' in f.lower()]
+    proc_file = os.path.join(services_dir, 'document_processor.py')
     
-    if proc_files:
-        return f"Found document processor files (update plan): {proc_files}"
-    return True  # Confirms the gap
+    if not os.path.exists(proc_file):
+        return "Document processor file missing"
+    
+    with open(proc_file, 'r') as f:
+        content = f.read()
+    if 'DocumentProcessor' not in content or 'extract_from_file' not in content:
+        return "Document processor missing expected classes/methods"
+    return True
 
 
 # ============================================================================
@@ -374,40 +391,85 @@ def test_agents_structure():
     return True
 
 
-@test("Agent base/ is EMPTY (gap)", "7-Agents")
-def test_agents_base_empty():
+@test("Agent base/ has BaseAgent", "7-Agents")
+def test_agents_base_implemented():
     import os
     
     base_dir = os.path.join(os.path.dirname(__file__), '..', 'ghostline', 'agents', 'agents', 'base')
-    files = [f for f in os.listdir(base_dir) if f.endswith('.py')]
+    agent_file = os.path.join(base_dir, 'agent.py')
     
-    if files:
-        return f"Found files in base/ (update plan): {files}"
-    return True  # Confirms the gap
+    if not os.path.exists(agent_file):
+        return "agent.py missing from base/"
+    
+    with open(agent_file, 'r') as f:
+        content = f.read()
+    
+    required = ['BaseAgent', 'AgentConfig', 'AgentOutput']
+    missing = [r for r in required if r not in content]
+    
+    if missing:
+        return f"Base agent missing: {missing}"
+    return True
 
 
-@test("Agent specialized/ is EMPTY (gap)", "7-Agents")
-def test_agents_specialized_empty():
+@test("Specialized agents implemented", "7-Agents")
+def test_agents_specialized_implemented():
     import os
     
     spec_dir = os.path.join(os.path.dirname(__file__), '..', 'ghostline', 'agents', 'agents', 'specialized')
-    files = [f for f in os.listdir(spec_dir) if f.endswith('.py')]
     
-    if files:
-        return f"Found files in specialized/ (update plan): {files}"
-    return True  # Confirms the gap
+    required_agents = [
+        'outline_planner.py',
+        'content_drafter.py',
+        'voice_editor.py',
+        'fact_checker.py',
+        'cohesion_analyst.py',
+    ]
+    
+    files = os.listdir(spec_dir)
+    missing = [a for a in required_agents if a not in files]
+    
+    if missing:
+        return f"Missing specialized agents: {missing}"
+    return True
 
 
-@test("Only database.py exists in agents core/", "7-Agents")
-def test_agents_core_minimal():
+@test("Agents core has database.py", "7-Agents")
+def test_agents_core():
     import os
     
     core_dir = os.path.join(os.path.dirname(__file__), '..', 'ghostline', 'agents', 'agents', 'core')
     files = [f for f in os.listdir(core_dir) if f.endswith('.py')]
     
-    if files == ['database.py']:
-        return True  # Only database.py, confirms gap
-    return f"Found additional files in core/ (update plan): {files}"
+    if 'database.py' not in files:
+        return "database.py missing from core/"
+    return True
+
+
+@test("LangGraph orchestration exists", "7-Agents")
+def test_langgraph_orchestration():
+    import os
+    
+    orch_dir = os.path.join(os.path.dirname(__file__), '..', 'ghostline', 'agents', 'orchestrator')
+    
+    if not os.path.exists(orch_dir):
+        return "orchestrator/ directory missing"
+    
+    required = ['workflow.py', 'subgraphs.py']
+    files = os.listdir(orch_dir)
+    missing = [f for f in required if f not in files]
+    
+    if missing:
+        return f"Missing orchestration files: {missing}"
+    
+    # Check workflow.py has key components
+    with open(os.path.join(orch_dir, 'workflow.py'), 'r') as f:
+        content = f.read()
+    
+    if 'BookGenerationWorkflow' not in content or 'StateGraph' not in content:
+        return "workflow.py missing key components"
+    
+    return True
 
 
 # ============================================================================
