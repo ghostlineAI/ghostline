@@ -47,7 +47,7 @@ class VoiceEditorAgent(BaseAgent[VoiceState]):
     def _default_config(self) -> AgentConfig:
         return AgentConfig(
             role=AgentRole.EDITOR,
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             provider=LLMProvider.ANTHROPIC,
             temperature=0.5,  # Lower for consistent editing
             max_tokens=8192,

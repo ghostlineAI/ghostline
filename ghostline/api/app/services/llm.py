@@ -49,6 +49,13 @@ class ModelConfig:
 # Model configurations with pricing (as of Dec 2024)
 MODELS = {
     # Anthropic models
+    "claude-sonnet-4-20250514": ModelConfig(
+        provider=ModelProvider.ANTHROPIC,
+        model_id="claude-sonnet-4-20250514",
+        max_tokens=8192,
+        input_cost_per_1k=0.003,
+        output_cost_per_1k=0.015,
+    ),
     "claude-3-5-sonnet-20241022": ModelConfig(
         provider=ModelProvider.ANTHROPIC,
         model_id="claude-3-5-sonnet-20241022",
@@ -110,7 +117,7 @@ class BaseLLMClient(ABC):
 class AnthropicClient(BaseLLMClient):
     """Anthropic Claude client."""
     
-    def __init__(self, model: str = "claude-3-5-sonnet-20241022"):
+    def __init__(self, model: str = "claude-sonnet-4-20250514"):
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
@@ -283,7 +290,7 @@ class LLMService:
         self._clients: dict[str, BaseLLMClient] = {}
         
         # Default models
-        self.default_model = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
+        self.default_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
         self.fast_model = "claude-3-haiku-20240307"
     
     def get_client(self, model: Optional[str] = None) -> BaseLLMClient:

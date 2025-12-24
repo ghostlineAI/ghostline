@@ -52,7 +52,7 @@ class ContentDrafterAgent(BaseAgent[ChapterState]):
     def _default_config(self) -> AgentConfig:
         return AgentConfig(
             role=AgentRole.DRAFTER,
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             provider=LLMProvider.ANTHROPIC,
             temperature=0.7,
             max_tokens=8192,  # Longer for chapter content

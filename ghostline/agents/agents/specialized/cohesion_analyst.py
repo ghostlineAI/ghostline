@@ -48,7 +48,7 @@ class CohesionAnalystAgent(BaseAgent[CohesionState]):
     def _default_config(self) -> AgentConfig:
         return AgentConfig(
             role=AgentRole.COHESION,
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             provider=LLMProvider.ANTHROPIC,
             temperature=0.4,
             max_tokens=4096,

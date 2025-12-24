@@ -43,7 +43,7 @@ class LLMProvider(str, Enum):
 class AgentConfig:
     """Configuration for an agent."""
     role: AgentRole
-    model: str = "claude-3-5-sonnet-20241022"
+    model: str = "claude-sonnet-4-20250514"  # Latest Claude Sonnet
     provider: LLMProvider = LLMProvider.ANTHROPIC
     temperature: float = 0.7
     max_tokens: int = 4096
@@ -215,7 +215,8 @@ class BaseAgent(ABC, Generic[StateT]):
         """Estimate cost based on tokens and model."""
         # Rough pricing per 1K tokens
         pricing = {
-            "claude-3-5-sonnet-20241022": 0.009,  # Average of input/output
+            "claude-sonnet-4-20250514": 0.009,  # Average of input/output
+            "claude-3-5-sonnet-20241022": 0.009,
             "claude-3-haiku-20240307": 0.001,
             "gpt-4o": 0.01,
             "gpt-4o-mini": 0.0004,

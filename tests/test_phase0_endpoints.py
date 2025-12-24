@@ -45,10 +45,6 @@ class TestPhase0Endpoints:
         assert any("generate" in p for p in route_paths)
         assert any("tasks" in p for p in route_paths)
     
-    @pytest.mark.skipif(
-        True,  # Skip by default - requires running database
-        reason="Requires running database"
-    )
     def test_endpoint_responses_with_db(self):
         """Test actual endpoint responses (requires DB)."""
         from app.main import app
@@ -56,6 +52,8 @@ class TestPhase0Endpoints:
         
         response = client.get("/health")
         assert response.status_code == 200
+        assert response.json()["status"] == "healthy"
+        print("  [LIVE] Health endpoint: OK")
 
 
 class TestPhase0CeleryTasks:

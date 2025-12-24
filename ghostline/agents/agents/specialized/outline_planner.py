@@ -50,7 +50,7 @@ class OutlinePlannerAgent(BaseAgent[OutlineState]):
     def _default_config(self) -> AgentConfig:
         return AgentConfig(
             role=AgentRole.PLANNER,
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             provider=LLMProvider.ANTHROPIC,
             temperature=0.7,
             max_tokens=4096,
@@ -177,7 +177,7 @@ class OutlineCriticAgent(ConversationAgent):
     def _default_config(self) -> AgentConfig:
         return AgentConfig(
             role=AgentRole.CRITIC,
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             provider=LLMProvider.ANTHROPIC,
             temperature=0.5,
             max_tokens=2048,
