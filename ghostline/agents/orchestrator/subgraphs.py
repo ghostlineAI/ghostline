@@ -8,11 +8,16 @@ These implement the "agent talk" within controlled workflows:
 """
 
 import os
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, TypedDict
 
 from langgraph.graph import StateGraph, START, END
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -147,11 +152,13 @@ class OutlineSubgraph:
     
     def _plan_node(self, state: OutlineSubgraphState) -> OutlineSubgraphState:
         """Generate initial outline using OutlinePlannerAgent."""
+        logger.info("📝 [OutlineSubgraph] Starting plan node...")
         state["iteration"] = 0
         state["turns"] = 1
         
         # Use real agent if available
         if self.planner:
+            logger.info("📝 [OutlineSubgraph] Using real OutlinePlannerAgent")
             from agents.specialized.outline_planner import OutlineState
             
             outline_state = OutlineState(
@@ -168,11 +175,12 @@ class OutlineSubgraph:
                 state["current_outline"] = output.structured_data
                 state["tokens_used"] = state.get("tokens_used", 0) + output.tokens_used
                 state["cost_incurred"] = state.get("cost_incurred", 0.0) + output.estimated_cost
+                logger.info(f"📝 [OutlineSubgraph] Outline generated: {len(state['current_outline'].get('chapters', []))} chapters, {output.tokens_used} tokens")
             else:
-                # Fallback to placeholder
+                logger.warning(f"📝 [OutlineSubgraph] Agent failed, using placeholder: {output.error}")
                 state["current_outline"] = self._placeholder_outline(state)
         else:
-            # No API keys - use placeholder
+            logger.info("📝 [OutlineSubgraph] No API keys - using placeholder outline")
             state["current_outline"] = self._placeholder_outline(state)
         
         return state
@@ -429,6 +437,7 @@ class ChapterSubgraph:
     
     def _draft_node(self, state: ChapterSubgraphState) -> ChapterSubgraphState:
         """Generate initial chapter draft using ContentDrafterAgent."""
+        logger.info(f"📖 [ChapterSubgraph] Starting draft node for chapter {state.get('chapter_outline', {}).get('number', '?')}")
         state["iteration"] = 0
         
         chapter_outline = state.get("chapter_outline", {})
@@ -478,6 +487,7 @@ The content would be expanded based on the source materials and voice profile.
     
     def _voice_edit_node(self, state: ChapterSubgraphState) -> ChapterSubgraphState:
         """Edit for voice consistency using VoiceEditorAgent."""
+        logger.info(f"🎤 [ChapterSubgraph] Voice edit node (iteration {state.get('iteration', 0)})")
         content = state.get("draft_content", "")
         voice_profile = state.get("voice_profile", {})
         
@@ -512,6 +522,7 @@ The content would be expanded based on the source materials and voice profile.
     
     def _fact_check_node(self, state: ChapterSubgraphState) -> ChapterSubgraphState:
         """Check factual accuracy using FactCheckerAgent."""
+        logger.info(f"✅ [ChapterSubgraph] Fact check node (voice_score={state.get('voice_score', 0):.2f})")
         content = state.get("edited_content", state.get("draft_content", ""))
         
         if self.fact_checker:
@@ -538,6 +549,7 @@ The content would be expanded based on the source materials and voice profile.
     
     def _cohesion_check_node(self, state: ChapterSubgraphState) -> ChapterSubgraphState:
         """Check cohesion and flow using CohesionAnalystAgent."""
+        logger.info(f"🔗 [ChapterSubgraph] Cohesion check node (fact_score={state.get('fact_score', 0):.2f})")
         content = state.get("edited_content", state.get("draft_content", ""))
         
         if self.cohesion_analyst:
@@ -604,18 +616,28 @@ Provide the revised chapter maintaining the same voice and structure."""
     
     def _should_revise(self, state: ChapterSubgraphState) -> str:
         """Determine if revision is needed."""
+        iteration = state.get("iteration", 0)
+        voice_score = state.get("voice_score", 0)
+        fact_score = state.get("fact_score", 0)
+        cohesion_score = state.get("cohesion_score", 0)
+        
+        logger.info(f"🔄 [ChapterSubgraph] Checking revision: iter={iteration}, voice={voice_score:.2f}, fact={fact_score:.2f}, cohesion={cohesion_score:.2f}")
+        
         # Check iteration limit
-        if state.get("iteration", 0) >= self.config.max_turns:
+        if iteration >= self.config.max_turns:
+            logger.info(f"🔄 [ChapterSubgraph] Max turns reached ({self.config.max_turns}), finishing")
             return "done"
         
         # Check quality thresholds
-        voice_ok = state.get("voice_score", 0) >= self.voice_threshold
-        fact_ok = state.get("fact_score", 0) >= self.fact_threshold
-        cohesion_ok = state.get("cohesion_score", 0) >= self.cohesion_threshold
+        voice_ok = voice_score >= self.voice_threshold
+        fact_ok = fact_score >= self.fact_threshold
+        cohesion_ok = cohesion_score >= self.cohesion_threshold
         
         if voice_ok and fact_ok and cohesion_ok:
+            logger.info("🔄 [ChapterSubgraph] All thresholds met, finishing")
             return "done"
         
+        logger.info(f"🔄 [ChapterSubgraph] Needs revision (voice_ok={voice_ok}, fact_ok={fact_ok}, cohesion_ok={cohesion_ok})")
         return "revise"
     
     def run(
