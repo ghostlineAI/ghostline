@@ -81,6 +81,9 @@ class GenerationTask(Base):
 
     # Celery task ID
     celery_task_id = Column(String(255))
+    
+    # LangGraph workflow state (for durable pause/resume)
+    workflow_state = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

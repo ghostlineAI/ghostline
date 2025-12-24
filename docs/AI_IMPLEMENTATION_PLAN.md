@@ -1,6 +1,32 @@
 # GhostLine AI Implementation Plan
 
-**Last Updated**: Dec 23, 2025 - Added LangGraph architecture decision
+**Last Updated**: Dec 24, 2025 - Added Ask1-3 review findings (architecture + code reuse + science/ML)
+
+> **Note**: This file contains some **historical** notes from early phases. The current priority is **Phase 7 (below)**: fix schema drift + make the AI scientifically grounded (RAG), measurable (voice/facts), safe (mental-health domain), and durable (pause/resume across restarts).
+
+---
+
+## 2025-12-24 Status Snapshot (Post-Phase 6 + Ask1-3 Reviews)
+
+### What exists (scaffolding / plumbing)
+- **Frontend ↔ Backend wiring** exists for generation triggers, polling, outline review UI, content viewing, and conversation-log viewing.
+- **Agent orchestration** exists as bounded LangGraph subgraphs (planner/critic; drafter/voice/fact/cohesion) with structured logging.
+- **Core AI services exist** (LLM client, document processor, embeddings) — but they are not yet fully integrated into a correct ingest→RAG→draft loop.
+
+### What is not sound yet (blockers)
+- **Schema drift**: Alembic migrations ≠ ORM models ≠ services. This blocks reliable ingestion, embedding persistence, retrieval, and task pause/resume.
+- **RAG/memory not actually used** in drafting/fact-check today (source chunks are often empty), so outputs will be generic/hallucination-prone.
+- **Voice similarity KPI (≥ 0.88) is not implemented as a real metric**. Current “voice score” is LLM-self-reported and uncalibrated.
+- **Fact checking is LLM-self-reported** (no claim-to-source enforcement, no citations contract).
+- **Durability**: the current LangGraph checkpointer is in-memory (`MemorySaver`), so “pause for hours/days” and “recovery after restart” are not guaranteed.
+- **Model routing/cost accounting** is inconsistent across API vs agents (risk of 404 model errors + misleading cost/tokens).
+
+### Immediate objective
+Deliver an end-to-end **“10-page mental health book”** run that is:
+- Grounded in uploaded sources (RAG + citations)
+- Safe for mental-health content
+- Measurable (voice/facts signals)
+- Durable (pause/resume survives process restarts)
 
 ---
 
@@ -36,6 +62,8 @@ Inside OutlineSubgraph / DraftChapterSubgraph:
 ---
 
 ## E2E Test Results Summary
+
+> **Historical note**: the following “confirmed gaps” reflect early test runs before Phases 0–6 were implemented. Current blockers are tracked in **Phase 7**.
 
 ```
 ================================================================================
@@ -92,6 +120,67 @@ CONFIRMED GAPS (verified by automated tests)
 ---
 
 ## Implementation Roadmap
+
+---
+
+## Phase 7 (Current Priority): Schema + Science/ML Hardening
+
+### 7.0 Schema alignment (blocking)
+**Goal**: Make DB schema, ORM models, and services agree so ingestion + retrieval + task state are real.
+
+- Align `content_chunks` migration with `ContentChunk` ORM (token_count, embedding_model, position fields, etc.).
+- Align `generation_tasks.status` enum to include `QUEUED` + `PAUSED` (and any other states used in code).
+- Align `source_materials` fields used by processing services (extracted_text, processing_status, file path/key fields).
+- Add a repeatable local reset/migrate flow (drop/recreate + `alembic upgrade head`) for deterministic dev/test runs.
+
+### 7.1 Embeddings strategy (make it mathematically coherent)
+**Goal**: One clear embedding story for RAG + any similarity metrics.
+
+- Decide the canonical embedding dimension + model:
+  - **Option A (local-first)**: use a sentence-transformers model (e.g. 768/1024 dims) and set DB vector dims to match.
+  - **Option B (API-first)**: use OpenAI embeddings (e.g. 1536 dims) consistently and accept external dependency.
+- Remove padding/truncation hacks; enforce dimension checks at runtime.
+- Persist `embedding_model` per chunk/profile and version it.
+
+### 7.2 Memory/RAG that actually feeds generation (no more generic output)
+**Goal**: Drafting and checking must be grounded in retrieved chunks.
+
+- Implement pgvector-backed similarity search (SQL, not Python O(N) scans).
+- Store chunk metadata needed for citations: file_id, filename, page range, char offsets, extraction method.
+- Add a “retrieval budget” contract per step (max chunks, max tokens, diversity across sources).
+- Require citations in outline/chapter outputs (chunk IDs / filenames + page numbers when available).
+
+### 7.3 Voice fidelity: define + measure + enforce
+**Goal**: Voice is measurable (not LLM-self-scored) and used to drive revisions.
+
+- Define a VoiceProfile that includes:
+  - Stylometric features (sentence length distribution, punctuation, function word frequencies, readability)
+  - Optional embeddings (for semantic consistency, not as the sole “voice” metric)
+- Calibrate the ≥0.88 threshold (or revise KPI for MVP) using a small evaluation set.
+- Make VoiceEditor compute a deterministic score + only use LLM for rewriting.
+
+### 7.4 Fact checking: claim-to-source enforcement
+**Goal**: “Fact check” produces verifiable artifacts, not vibes.
+
+- Extract claims → retrieve evidence → mark each claim as supported/unsupported/uncertain.
+- Require at least one citation per non-trivial claim, or flag for user review.
+- Add a “no invention” mode for sensitive domains (mental health): prefer “unknown” over hallucination.
+
+### 7.5 Safety layer (mental-health domain)
+**Goal**: Generate a helpful book without unsafe medical/clinical advice.
+
+- Implement SafetyAgent pass: detect self-harm, crisis language, medical claims.
+- Enforce policy: educational tone, disclaimers, crisis resources, “consult a professional” guidance.
+- Add redaction controls for conversation logs (avoid storing raw sensitive text where possible).
+
+### 7.6 Evaluation harness (science guardrails)
+**Goal**: We can tell if outputs are grounded, non-generic, and improving over time.
+
+- Add offline eval scripts + CI checks:
+  - Grounding: % of paragraphs with citations; % claims supported
+  - Non-generic: presence of unique entities/phrases from sources; avoid boilerplate templates
+  - Voice: stylometry score movement pre/post edit
+- Add “golden run” tests using the mental-health sample set (local + live key mode).
 
 ### Phase 1: Core AI Foundation (Week 1)
 **Goal**: Build the primitives that all agents will use
@@ -555,12 +644,103 @@ Enable iterative collaboration.
 
 ---
 
-## Questions for You
+## Phase 7: Schema + Science/ML Hardening (COMPLETED)
 
-1. **API Keys**: Do you have Anthropic and/or OpenAI API keys ready?
-2. **LangGraph vs Simple**: Start with simple Python async orchestration, or jump to LangGraph?
-3. **Priority**: Focus on outline generation first, or end-to-end flow (even if shallow)?
-4. **Voice Similarity**: Target the 0.88 threshold now, or get basic generation working first?
+This phase addresses critical correctness bugs, science/ML assumptions, and grounding requirements.
 
-Let me know and I'll start implementing Phase 0 (fix the frontend/backend mismatch) and Phase 1 (core AI services)!
+### 7.1 Schema Reconciliation ✅ COMPLETED
+- Created Alembic migration to reconcile ORM models with database
+- Fixed `ContentChunk` model (added `project_id`, `source_reference`, `chunk_index`)
+- Fixed `VoiceProfile` model (added stylometry fields for numeric metrics)
+- Fixed `GenerationTask` status enum (added `PAUSED`, `QUEUED`)
+- Added `workflow_state` to `GenerationTask` for LangGraph checkpoints
+- Test: `scripts/test_phase7_schema.py` - ALL PASSED
+
+### 7.2 OpenAI Embedding Service ✅ COMPLETED
+- Replaced sentence-transformers padding hack with native OpenAI embeddings
+- Using `text-embedding-3-small` (1536 dimensions - matches DB schema)
+- Added fallback to local sentence-transformers for offline testing
+- Test: `scripts/test_phase7_embeddings.py` - ALL PASSED (live OpenAI API)
+
+### 7.3 RAG Service with Citation Tracking ✅ COMPLETED
+- Created `RAGService` with pgvector similarity search
+- Added `Citation` and `RetrievedChunk` classes for grounding
+- Integrated citation markers into context building
+- Test: `scripts/test_phase7_services.py` - RAG tests PASSED
+
+### 7.4 Grounded Agent Updates ✅ COMPLETED
+- Updated `ContentDrafterAgent` to require source chunks with citations
+- Updated `FactCheckerAgent` with claim-to-source mapping
+- Added grounding score computation and enforcement
+- Agents now include `[citation]` markers in output
+
+### 7.5 Numeric Voice Metrics ✅ COMPLETED
+- Created `VoiceMetricsService` with stylometry feature extraction
+- Implemented numeric voice similarity (embedding + stylometry combined)
+- Features: sentence length, vocabulary complexity, punctuation density, etc.
+- Updated `VoiceEditorAgent` to use numeric metrics (not LLM-judged)
+- Threshold logic: reject content if similarity < 0.85
+- Test: `scripts/test_phase7_services.py` - Voice tests PASSED
+
+### 7.6 Mental Health Safety Service ✅ COMPLETED
+- Created `SafetyService` for content validation
+- Detects: crisis language, medical advice, diagnosis claims, therapy substitutes
+- Suggests appropriate disclaimers for mental health content
+- Includes crisis hotline resources
+- Test: `scripts/test_phase7_services.py` - Safety tests PASSED
+
+### 7.7 Task and Service Fixes ✅ COMPLETED
+- Fixed `analyze_voice_task` to use correct service methods
+- Fixed `ProcessingService` to use correct model fields (`voice_embedding`)
+- Updated to use OpenAI embeddings + stylometry extraction
+
+### Files Created/Modified in Phase 7:
+```
+ghostline/api/alembic/versions/phase7_schema_reconciliation.py (NEW)
+ghostline/api/app/services/embeddings.py (REWRITTEN)
+ghostline/api/app/services/rag.py (NEW)
+ghostline/api/app/services/voice_metrics.py (NEW)
+ghostline/api/app/services/safety.py (NEW)
+ghostline/api/app/services/processing.py (UPDATED)
+ghostline/api/app/tasks/generation.py (UPDATED)
+ghostline/api/app/models/content_chunk.py (UPDATED)
+ghostline/api/app/models/voice_profile.py (UPDATED)
+ghostline/api/app/models/source_material.py (UPDATED)
+ghostline/api/app/models/generation_task.py (UPDATED)
+ghostline/api/app/models/project.py (UPDATED)
+ghostline/agents/agents/specialized/content_drafter.py (UPDATED)
+ghostline/agents/agents/specialized/fact_checker.py (UPDATED)
+ghostline/agents/agents/specialized/voice_editor.py (UPDATED)
+ghostline/api/scripts/test_phase7_schema.py (NEW)
+ghostline/api/scripts/test_phase7_embeddings.py (NEW)
+ghostline/api/scripts/test_phase7_services.py (NEW)
+```
+
+---
+
+## Remaining Work (Phase 8+)
+
+### Phase 8.1: PostgresCheckpointer for Durable LangGraph State
+- Replace `MemorySaver` with PostgreSQL-backed checkpointer
+- Enable true pause/resume across worker restarts
+
+### Phase 8.2: Eval Harness
+- Create golden test cases for grounding and voice matching
+- Add CI checks for non-generic output
+- Test with the mental health PDFs/PNG provided by user
+
+### Phase 8.3: Full E2E Test Suite
+- Run complete workflow from upload → outline → approve → generate → export
+- Validate conversation logs for debugging
+
+---
+
+## Decision Log
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2025-12-23 | OpenAI embeddings (not local sentence-transformers) | Native 1536 dims match DB schema, no padding hack |
+| 2025-12-23 | Strict numeric voice metric (not LLM-judged) | Reproducible, calibrated, deterministic |
+| 2025-12-23 | Safety service for mental health | Domain-specific risk mitigation |
+| 2025-12-23 | Claim-to-source mapping in FactChecker | Grounding enforcement, not just LLM opinion |
 

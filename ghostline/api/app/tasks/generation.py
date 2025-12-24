@@ -215,12 +215,13 @@ def analyze_voice_task(self, task_id: str):
     """
     Analyze source materials to create a voice profile.
     
-    Uses sentence-transformers to:
-    1. Generate embeddings from writing samples
-    2. Extract stylistic patterns
+    Uses OpenAI embeddings + stylometry to:
+    1. Generate embeddings from writing samples (1536 dims)
+    2. Extract stylometric features for numeric voice matching
     3. Create a VoiceProfile for the project
     """
     db = get_db_session()
+    task = None
     try:
         task = db.query(GenerationTask).filter(GenerationTask.id == task_id).first()
         if not task:
@@ -240,12 +241,13 @@ def analyze_voice_task(self, task_id: str):
             return {"error": "Project not found"}
         
         # Import services
-        from app.services.embeddings import EmbeddingService
-        from app.services.document_processor import DocumentProcessor
+        from app.services.embeddings import get_embedding_service
+        from app.services.voice_metrics import VoiceMetricsService
         from app.models.source_material import SourceMaterial
+        from app.models.voice_profile import VoiceProfile
         
-        embedding_service = EmbeddingService()
-        doc_processor = DocumentProcessor()
+        embedding_service = get_embedding_service()
+        voice_metrics = VoiceMetricsService(embedding_service=embedding_service)
         
         # Get writing samples
         source_materials = db.query(SourceMaterial).filter(
@@ -256,45 +258,106 @@ def analyze_voice_task(self, task_id: str):
         task.current_step = "Extracting text from samples..."
         db.commit()
         
-        # Extract text and generate embeddings
+        # Collect text from source materials
         all_text = []
         for sm in source_materials:
-            if sm.file_path:
-                try:
-                    # Extract text
-                    chunks = doc_processor.process_file(sm.file_path)
-                    for chunk in chunks:
-                        all_text.append(chunk["content"])
-                except Exception:
-                    # Skip files that can't be processed
-                    pass
+            # Use extracted_text or extracted_content
+            text = sm.extracted_text or sm.extracted_content
+            if text:
+                all_text.append(text[:10000])  # First 10k chars per source
+            elif sm.local_path:
+                # Try to read from local file
+                import os
+                if os.path.exists(sm.local_path):
+                    try:
+                        with open(sm.local_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()[:10000]
+                            all_text.append(content)
+                    except Exception:
+                        pass
         
-        task.progress = 50
-        task.current_step = "Generating voice embeddings..."
+        task.progress = 40
+        task.current_step = "Extracting stylometry features..."
         db.commit()
         
-        # Generate embeddings for voice analysis
-        if all_text:
-            embeddings = embedding_service.embed_batch(all_text[:100])  # Max 100 chunks
-            
-            # Simple voice profile: average embedding
-            import numpy as np
-            avg_embedding = np.mean(embeddings, axis=0).tolist()
-            
-            voice_profile = {
-                "embedding": avg_embedding,
-                "sample_count": len(all_text),
-                "avg_sentence_length": sum(len(t.split()) for t in all_text) / len(all_text) if all_text else 0,
-            }
+        # Combine all text for analysis
+        combined_text = "\n\n".join(all_text)
+        
+        if not combined_text:
+            task.status = TaskStatus.FAILED
+            task.error_message = "No text content found in source materials"
+            db.commit()
+            return {"error": "No text content"}
+        
+        # Extract stylometry features
+        stylometry_features = voice_metrics.extract_features(combined_text)
+        
+        task.progress = 60
+        task.current_step = "Generating voice embedding..."
+        db.commit()
+        
+        # Generate embedding for voice (using OpenAI text-embedding-3-small)
+        embedding_result = embedding_service.embed_text(combined_text[:8000])  # OpenAI limit
+        
+        task.progress = 80
+        task.current_step = "Creating voice profile..."
+        db.commit()
+        
+        # Create or update voice profile in database
+        existing_profile = db.query(VoiceProfile).filter(
+            VoiceProfile.project_id == project.id
+        ).first()
+        
+        profile_data = {
+            "voice_embedding": embedding_result.embedding,
+            "avg_sentence_length": stylometry_features.avg_sentence_length,
+            "sentence_length_std": stylometry_features.sentence_length_std,
+            "avg_word_length": stylometry_features.avg_word_length,
+            "vocabulary_complexity": stylometry_features.vocabulary_complexity,
+            "vocabulary_richness": stylometry_features.vocabulary_richness,
+            "punctuation_density": stylometry_features.punctuation_density,
+            "question_ratio": stylometry_features.question_ratio,
+            "exclamation_ratio": stylometry_features.exclamation_ratio,
+            "avg_paragraph_length": stylometry_features.avg_paragraph_length,
+            "similarity_threshold": 0.85,
+            "embedding_weight": 0.4,
+            "is_active": True,
+        }
+        
+        if existing_profile:
+            for key, value in profile_data.items():
+                setattr(existing_profile, key, value)
+            profile = existing_profile
         else:
-            voice_profile = {
-                "embedding": None,
-                "sample_count": 0,
-                "avg_sentence_length": 0,
-            }
+            profile = VoiceProfile(
+                project_id=project.id,
+                name=f"{project.title} Voice Profile",
+                **profile_data,
+            )
+            db.add(profile)
+        
+        db.commit()
+        db.refresh(profile)
+        
+        # Prepare output data
+        voice_profile_output = {
+            "profile_id": str(profile.id),
+            "embedding_dimensions": len(embedding_result.embedding),
+            "embedding_provider": str(embedding_result.provider),
+            "sample_count": len(all_text),
+            "total_words": stylometry_features.total_words,
+            "stylometry": {
+                "avg_sentence_length": stylometry_features.avg_sentence_length,
+                "vocabulary_complexity": stylometry_features.vocabulary_complexity,
+                "punctuation_density": stylometry_features.punctuation_density,
+            },
+            "threshold": 0.85,
+        }
         
         task.output_data = task.output_data or {}
-        task.output_data["voice_profile"] = voice_profile
+        task.output_data["voice_profile"] = voice_profile_output
+        task.output_entity_type = "voice_profile"
+        task.output_entity_id = profile.id
         
         task.status = TaskStatus.COMPLETED
         task.completed_at = datetime.utcnow()
@@ -302,7 +365,7 @@ def analyze_voice_task(self, task_id: str):
         task.current_step = "Voice analysis complete"
         db.commit()
         
-        return {"status": "completed", "task_id": task_id, "voice_profile": voice_profile}
+        return {"status": "completed", "task_id": task_id, "voice_profile": voice_profile_output}
         
     except Exception as e:
         if task:

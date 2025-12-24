@@ -233,13 +233,13 @@ class ProcessingService:
         ).first()
         
         if existing_profile:
-            existing_profile.embedding = embedding_result.embedding
+            existing_profile.voice_embedding = embedding_result.embedding
             existing_profile.style_description = style_description
             profile = existing_profile
         else:
             profile = VoiceProfile(
                 project_id=project.id,
-                embedding=embedding_result.embedding,
+                voice_embedding=embedding_result.embedding,
                 style_description=style_description,
             )
             db.add(profile)

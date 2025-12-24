@@ -90,6 +90,9 @@ class Project(Base):
     generation_tasks = relationship(
         "GenerationTask", back_populates="project", cascade="all, delete-orphan"
     )
+    content_chunks = relationship(
+        "ContentChunk", back_populates="project", cascade="all, delete-orphan"
+    )
     book_outlines = relationship(
         "BookOutline", back_populates="project", cascade="all, delete-orphan"
     )

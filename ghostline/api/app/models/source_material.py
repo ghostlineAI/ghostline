@@ -63,8 +63,12 @@ class SourceMaterial(Base):
 
     # Extracted content
     extracted_text = Column(Text)
+    extracted_content = Column(Text)  # Alias for some code paths
     word_count = Column(Integer)
     page_count = Column(Integer)
+
+    # Local storage path (for local dev mode)
+    local_path = Column(String(1000), nullable=True)
 
     # Metadata
     file_metadata = Column(JSON, default=dict)
