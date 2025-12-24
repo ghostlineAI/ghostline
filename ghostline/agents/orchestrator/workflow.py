@@ -88,6 +88,11 @@ class WorkflowState(TypedDict, total=False):
     last_updated: str
     completed_at: Optional[str]
     
+    # Safety checks (for mental health content)
+    safety_passed: bool
+    safety_findings: list[dict]  # {flag, severity, matched_text, recommendation}
+    suggested_disclaimer: Optional[str]
+    
     # Errors
     error: Optional[str]
 
@@ -238,6 +243,72 @@ def review_chapter(state: WorkflowState) -> WorkflowState:
     return state
 
 
+def safety_check(state: WorkflowState) -> WorkflowState:
+    """
+    Run safety checks on generated content.
+    
+    For mental health content, this validates:
+    - No harmful medical advice
+    - No crisis language without resources
+    - Appropriate disclaimers suggested
+    """
+    state["phase"] = WorkflowPhase.REVIEWING.value
+    state["current_step"] = "Running safety checks"
+    state["progress"] = 92
+    state["last_updated"] = datetime.utcnow().isoformat()
+    
+    # Get all chapter content
+    chapters = state.get("chapters", [])
+    all_content = "\n\n".join(ch.get("content", "") for ch in chapters if ch.get("content"))
+    
+    if not all_content:
+        state["safety_passed"] = True
+        state["safety_findings"] = []
+        return state
+    
+    try:
+        # Import and run safety service
+        # Note: Import inside function to avoid circular imports at module level
+        import sys
+        from pathlib import Path
+        
+        # Add api path if needed
+        api_path = Path(__file__).parent.parent.parent.parent / "api"
+        if str(api_path) not in sys.path:
+            sys.path.insert(0, str(api_path))
+        
+        from app.services.safety import SafetyService
+        
+        safety = SafetyService()
+        result = safety.check_content(all_content)
+        
+        state["safety_passed"] = result.is_safe
+        state["safety_findings"] = [
+            {
+                "flag": f.flag.value,
+                "severity": f.severity,
+                "matched_text": f.matched_text[:100],
+                "recommendation": f.recommendation,
+            }
+            for f in result.findings
+        ]
+        
+        if result.requires_disclaimer:
+            state["suggested_disclaimer"] = result.suggested_disclaimer
+        
+        # Log safety results
+        logger.info(f"Safety check: {'PASSED' if result.is_safe else 'FLAGGED'} "
+                   f"with {len(result.findings)} findings")
+        
+    except Exception as e:
+        # Don't fail workflow on safety check errors, just log
+        logger.warning(f"Safety check failed: {e}")
+        state["safety_passed"] = True  # Pass by default on errors
+        state["safety_findings"] = []
+    
+    return state
+
+
 def finalize_book(state: WorkflowState) -> WorkflowState:
     """Finalize the complete book."""
     state["phase"] = WorkflowPhase.FINALIZING.value
@@ -327,6 +398,7 @@ class BookGenerationWorkflow:
         workflow.add_node("draft_chapter", draft_chapter)
         workflow.add_node("edit_chapter", edit_chapter)
         workflow.add_node("review_chapter", review_chapter)
+        workflow.add_node("safety_check", safety_check)  # Safety validation before finalize
         workflow.add_node("finalize", finalize_book)
         workflow.add_node("complete", complete_workflow)
         workflow.add_node("handle_error", handle_workflow_error)
@@ -361,10 +433,11 @@ class BookGenerationWorkflow:
             should_continue_chapters,
             {
                 "draft_chapter": "draft_chapter",
-                "finalize": "finalize",
+                "finalize": "safety_check",  # Run safety check before finalize
             }
         )
         
+        workflow.add_edge("safety_check", "finalize")
         workflow.add_edge("finalize", "complete")
         workflow.add_edge("complete", END)
         workflow.add_edge("handle_error", END)

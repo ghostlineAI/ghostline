@@ -9,15 +9,18 @@ Provides:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.models.content_chunk import ContentChunk
-from app.models.project import Project
 from app.services.embeddings import EmbeddingService, get_embedding_service
+
+# Avoid circular imports - models are only needed for type hints and inside functions
+if TYPE_CHECKING:
+    from app.models.content_chunk import ContentChunk
+    from app.models.project import Project
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +240,9 @@ class RAGService:
         Uses simple text matching.
         """
         logger.warning("Using fallback retrieval (no vector search)")
+        
+        # Import model inside function to avoid circular imports
+        from app.models.content_chunk import ContentChunk
         
         # Simple keyword-based retrieval
         keywords = query.lower().split()[:5]  # First 5 words
