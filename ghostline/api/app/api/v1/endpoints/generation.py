@@ -507,3 +507,80 @@ async def resume_task(
         "message": "Task resumed",
         "task_id": str(task.id),
     }
+
+
+@router.get("/tasks/{task_id}/conversation-logs")
+async def get_conversation_logs(
+    task_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """
+    Get conversation logs for a task.
+    
+    Returns the full agent conversation history if available.
+    """
+    import json
+    from pathlib import Path
+    
+    task = db.query(GenerationTask).filter(GenerationTask.id == task_id).first()
+    
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found"
+        )
+    
+    # Verify user owns the project
+    project = db.query(Project).filter(
+        Project.id == task.project_id,
+        Project.owner_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    # Check if task output has conversation log path
+    conversation_log = None
+    
+    if task.output_data and "conversation_log" in task.output_data:
+        log_path = Path(task.output_data["conversation_log"])
+        if log_path.exists():
+            try:
+                with open(log_path, 'r') as f:
+                    conversation_log = json.load(f)
+            except Exception as e:
+                print(f"Failed to read conversation log: {e}")
+    
+    # If no log file, try to find by workflow ID
+    if not conversation_log and task.output_data and "workflow_id" in task.output_data:
+        logs_dir = Path("../agents/logs/conversations")
+        if logs_dir.exists():
+            for log_file in logs_dir.glob(f"*{task.output_data['workflow_id']}*.json"):
+                try:
+                    with open(log_file, 'r') as f:
+                        conversation_log = json.load(f)
+                    break
+                except Exception as e:
+                    print(f"Failed to read log file {log_file}: {e}")
+    
+    if not conversation_log:
+        return {
+            "session_id": str(task_id),
+            "workflow_type": task.task_type.value if task.task_type else "unknown",
+            "status": "no_logs",
+            "stats": {
+                "total_tokens": task.token_usage or 0,
+                "total_cost": f"${task.estimated_cost or 0:.4f}",
+                "total_duration_ms": 0,
+                "total_duration_sec": 0,
+                "message_count": 0,
+                "agent_calls": {},
+            },
+            "messages": [],
+        }
+    
+    return conversation_log

@@ -30,7 +30,7 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-800',
   processing: 'bg-blue-100 text-blue-800',
   ready: 'bg-purple-100 text-purple-800',
@@ -38,7 +38,7 @@ const statusColors = {
   archived: 'bg-gray-100 text-gray-600',
 };
 
-const genreLabels = {
+const genreLabels: Record<string, string> = {
   fiction: 'Fiction',
   non_fiction: 'Non-Fiction',
   memoir: 'Biography/Memoir',

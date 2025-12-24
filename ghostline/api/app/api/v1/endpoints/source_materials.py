@@ -105,11 +105,11 @@ async def upload_file(
     )
     file_url = await storage_service.upload_file(file, file_key)
 
-    # Check if we're in mock mode (S3 upload failed)
-    if "mock-s3.localhost" in file_url:
+    # Check if file URL is valid (should be local URL or S3 URL)
+    if not file_url or file_url.startswith("mock-"):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="File upload service is temporarily unavailable. The file could not be uploaded to cloud storage."
+            detail="File upload service is temporarily unavailable. The file could not be uploaded."
         )
 
     # Map file extension to MaterialType enum

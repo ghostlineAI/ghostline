@@ -1,11 +1,14 @@
 import { create } from 'zustand';
 
+export type BookGenre = 'fiction' | 'non_fiction' | 'memoir' | 'business' | 'self_help' | 'academic' | 'technical' | 'other';
+export type ProjectStatus = 'draft' | 'processing' | 'ready' | 'published' | 'archived';
+
 export interface Project {
   id: string;
   title: string;  // Changed from 'name' to match API
   description?: string;
-  genre?: 'fiction' | 'non_fiction' | 'memoir' | 'business' | 'self_help' | 'academic' | 'technical' | 'other';
-  status: 'draft' | 'processing' | 'ready' | 'published' | 'archived';
+  genre?: string;  // API returns string, we cast when needed
+  status: ProjectStatus | string;  // Allow string for API compatibility
   owner_id?: string;
   user_id?: string;
   forked_from_project_id?: string;

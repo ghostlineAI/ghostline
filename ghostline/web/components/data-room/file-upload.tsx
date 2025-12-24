@@ -2,9 +2,12 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, File, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, File, X, CheckCircle, AlertCircle, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { sourceMaterialsApi } from '@/lib/api/source-materials';
 import { toast } from 'sonner';
 import { isAxiosError } from '@/types/api';
@@ -14,12 +17,18 @@ interface FileUploadProps {
   onUploadComplete?: () => void;
 }
 
+interface FileMetadata {
+  title?: string;
+  description?: string;
+}
+
 interface UploadingFile {
   file: File;
   progress: number;
-  status: 'uploading' | 'completed' | 'error';
+  status: 'uploading' | 'completed' | 'error' | 'pending_metadata';
   error?: string;
   materialId?: string;
+  metadata?: FileMetadata;
 }
 
 export function FileUpload({ projectId, onUploadComplete }: FileUploadProps) {
