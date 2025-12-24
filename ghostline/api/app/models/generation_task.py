@@ -41,6 +41,7 @@ class TaskStatus(enum.Enum):
     PENDING = "pending"
     QUEUED = "queued"
     RUNNING = "running"
+    PAUSED = "paused"  # Waiting for user input (e.g., outline approval)
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"

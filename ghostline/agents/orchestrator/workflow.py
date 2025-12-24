@@ -221,9 +221,13 @@ def edit_chapter(state: WorkflowState) -> WorkflowState:
 
 def review_chapter(state: WorkflowState) -> WorkflowState:
     """Review chapter with fact-check and cohesion analysis."""
+    current = state.get("current_chapter", 0)
     state["phase"] = WorkflowPhase.REVIEWING.value
-    state["current_step"] = f"Reviewing chapter {state.get('current_chapter', 0) + 1}"
+    state["current_step"] = f"Reviewing chapter {current + 1}"
     state["last_updated"] = datetime.utcnow().isoformat()
+    
+    # Increment chapter counter after review is complete
+    state["current_chapter"] = current + 1
     
     return state
 
@@ -254,6 +258,19 @@ def handle_workflow_error(state: WorkflowState) -> WorkflowState:
     state["phase"] = WorkflowPhase.FAILED.value
     state["last_updated"] = datetime.utcnow().isoformat()
     
+    return state
+
+
+def wait_for_approval(state: WorkflowState) -> WorkflowState:
+    """
+    Wait node for user approval.
+    
+    This node is interrupted before execution, allowing the workflow
+    to pause. When resumed with approve_outline=True, the state is
+    updated and execution continues.
+    """
+    # This node just passes through - the actual waiting happens via interrupt
+    state["last_updated"] = datetime.utcnow().isoformat()
     return state
 
 
@@ -314,13 +331,18 @@ class BookGenerationWorkflow:
         workflow.add_edge("embed", "generate_outline")
         workflow.add_edge("generate_outline", "request_approval")
         
-        # Conditional edges based on approval
+        # After request_approval, check if we should proceed or wait
+        # Note: We use a dedicated wait node that will be interrupted
+        workflow.add_node("wait_for_approval", wait_for_approval)
+        
+        workflow.add_edge("request_approval", "wait_for_approval")
+        
         workflow.add_conditional_edges(
-            "request_approval",
+            "wait_for_approval",
             outline_decision,
             {
                 "start_drafting": "draft_chapter",
-                "wait_approval": END,  # Pause for user
+                "wait_approval": END,  # Only reaches END if still not approved after resume
             }
         )
         
@@ -341,7 +363,10 @@ class BookGenerationWorkflow:
         workflow.add_edge("complete", END)
         workflow.add_edge("handle_error", END)
         
-        return workflow.compile(checkpointer=self.checkpointer)
+        return workflow.compile(
+            checkpointer=self.checkpointer,
+            interrupt_before=["wait_for_approval"],
+        )
     
     def start(
         self,
