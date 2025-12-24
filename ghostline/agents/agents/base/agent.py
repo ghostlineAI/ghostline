@@ -6,9 +6,11 @@ All specialized agents inherit from BaseAgent, which provides:
 - State management
 - Cost tracking
 - Output formatting
+- Conversation logging
 """
 
 import os
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -19,6 +21,11 @@ from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
+
+# Import conversation logger
+from agents.core import get_conversation_logger
+
+logger = logging.getLogger(__name__)
 
 
 class AgentRole(str, Enum):
@@ -171,6 +178,10 @@ class BaseAgent(ABC, Generic[StateT]):
         import time
         start = time.time()
         
+        # Get conversation logger
+        conv_logger = get_conversation_logger()
+        agent_name = self.__class__.__name__
+        
         try:
             messages = [
                 SystemMessage(content=self.get_system_prompt()),
@@ -180,6 +191,14 @@ class BaseAgent(ABC, Generic[StateT]):
                 messages.append(HumanMessage(content=f"Context:\n{context}"))
             
             messages.append(HumanMessage(content=prompt))
+            
+            # Log the prompt being sent
+            conv_logger.log_prompt(
+                agent_name=agent_name,
+                prompt=prompt,
+                model=self.config.model,
+                context=context or "",
+            )
             
             response = self.llm.invoke(messages)
             
@@ -196,8 +215,20 @@ class BaseAgent(ABC, Generic[StateT]):
             self._total_cost += cost
             self._call_count += 1
             
+            response_content = response.content if isinstance(response.content, str) else str(response.content)
+            
+            # Log the response received
+            conv_logger.log_response(
+                agent_name=agent_name,
+                response=response_content,
+                tokens_used=tokens,
+                cost=cost,
+                duration_ms=duration,
+                model=self.config.model,
+            )
+            
             return AgentOutput(
-                content=response.content if isinstance(response.content, str) else str(response.content),
+                content=response_content,
                 tokens_used=tokens,
                 estimated_cost=cost,
                 duration_ms=duration,
@@ -205,6 +236,13 @@ class BaseAgent(ABC, Generic[StateT]):
             
         except Exception as e:
             duration = int((time.time() - start) * 1000)
+            
+            # Log the error
+            conv_logger.log_system(
+                agent_name=agent_name,
+                message=f"ERROR: {str(e)}"
+            )
+            
             return AgentOutput(
                 content="",
                 error=str(e),

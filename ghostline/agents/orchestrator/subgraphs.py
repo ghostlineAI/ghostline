@@ -15,6 +15,9 @@ from typing import Optional, TypedDict
 
 from langgraph.graph import StateGraph, START, END
 
+# Import conversation logger for tracking agent-to-agent communication
+from agents.core import get_conversation_logger
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -156,6 +159,10 @@ class OutlineSubgraph:
         state["iteration"] = 0
         state["turns"] = 1
         
+        # Log handoff
+        conv_logger = get_conversation_logger()
+        conv_logger.log_agent_handoff("Orchestrator", "OutlinePlanner", "Starting outline generation")
+        
         # Use real agent if available
         if self.planner:
             logger.info("📝 [OutlineSubgraph] Using real OutlinePlannerAgent")
@@ -208,6 +215,14 @@ class OutlineSubgraph:
         """Critique the current outline using OutlineCriticAgent."""
         state["turns"] = state.get("turns", 0) + 1
         
+        # Log handoff from planner to critic
+        conv_logger = get_conversation_logger()
+        conv_logger.log_agent_handoff(
+            "OutlinePlanner", 
+            "OutlineCritic", 
+            f"Reviewing outline (iteration {state.get('iteration', 0)})"
+        )
+        
         # Use real agent if available
         if self.critic:
             from agents.specialized.outline_planner import OutlineState
@@ -253,6 +268,14 @@ class OutlineSubgraph:
         """Refine outline based on feedback using OutlinePlannerAgent."""
         state["iteration"] = state.get("iteration", 0) + 1
         state["turns"] = state.get("turns", 0) + 1
+        
+        # Log handoff from critic back to planner
+        conv_logger = get_conversation_logger()
+        conv_logger.log_agent_handoff(
+            "OutlineCritic",
+            "OutlinePlanner",
+            f"Refining outline (iteration {state['iteration']})"
+        )
         
         if self.planner and state.get("feedback"):
             from agents.specialized.outline_planner import OutlineState
@@ -437,8 +460,13 @@ class ChapterSubgraph:
     
     def _draft_node(self, state: ChapterSubgraphState) -> ChapterSubgraphState:
         """Generate initial chapter draft using ContentDrafterAgent."""
-        logger.info(f"📖 [ChapterSubgraph] Starting draft node for chapter {state.get('chapter_outline', {}).get('number', '?')}")
+        chapter_num = state.get('chapter_outline', {}).get('number', '?')
+        logger.info(f"📖 [ChapterSubgraph] Starting draft node for chapter {chapter_num}")
         state["iteration"] = 0
+        
+        # Log handoff
+        conv_logger = get_conversation_logger()
+        conv_logger.log_agent_handoff("Orchestrator", "ContentDrafter", f"Drafting chapter {chapter_num}")
         
         chapter_outline = state.get("chapter_outline", {})
         
@@ -488,6 +516,11 @@ The content would be expanded based on the source materials and voice profile.
     def _voice_edit_node(self, state: ChapterSubgraphState) -> ChapterSubgraphState:
         """Edit for voice consistency using VoiceEditorAgent."""
         logger.info(f"🎤 [ChapterSubgraph] Voice edit node (iteration {state.get('iteration', 0)})")
+        
+        # Log handoff
+        conv_logger = get_conversation_logger()
+        conv_logger.log_agent_handoff("ContentDrafter", "VoiceEditor", "Editing for voice consistency")
+        
         content = state.get("draft_content", "")
         voice_profile = state.get("voice_profile", {})
         
@@ -523,6 +556,11 @@ The content would be expanded based on the source materials and voice profile.
     def _fact_check_node(self, state: ChapterSubgraphState) -> ChapterSubgraphState:
         """Check factual accuracy using FactCheckerAgent."""
         logger.info(f"✅ [ChapterSubgraph] Fact check node (voice_score={state.get('voice_score', 0):.2f})")
+        
+        # Log handoff
+        conv_logger = get_conversation_logger()
+        conv_logger.log_agent_handoff("VoiceEditor", "FactChecker", f"Verifying facts (voice_score={state.get('voice_score', 0):.2f})")
+        
         content = state.get("edited_content", state.get("draft_content", ""))
         
         if self.fact_checker:
@@ -550,6 +588,11 @@ The content would be expanded based on the source materials and voice profile.
     def _cohesion_check_node(self, state: ChapterSubgraphState) -> ChapterSubgraphState:
         """Check cohesion and flow using CohesionAnalystAgent."""
         logger.info(f"🔗 [ChapterSubgraph] Cohesion check node (fact_score={state.get('fact_score', 0):.2f})")
+        
+        # Log handoff
+        conv_logger = get_conversation_logger()
+        conv_logger.log_agent_handoff("FactChecker", "CohesionAnalyst", f"Checking cohesion (fact_score={state.get('fact_score', 0):.2f})")
+        
         content = state.get("edited_content", state.get("draft_content", ""))
         
         if self.cohesion_analyst:

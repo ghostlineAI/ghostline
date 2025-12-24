@@ -68,3 +68,5 @@ tsconfig.tsbuildinfo
 # Misc
 *.bak
 *.backup
+e2e_test_env/
+logs/

@@ -6,6 +6,7 @@ This is the outer graph that coordinates the full pipeline:
   DraftChapterSubgraph (loop) → UserEdits → Finalize → Export
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -15,6 +16,11 @@ from uuid import UUID, uuid4
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
+
+# Import conversation logger
+from agents.core import get_conversation_logger
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowPhase(str, Enum):
@@ -381,15 +387,42 @@ class BookGenerationWorkflow:
             source_material_ids=source_material_ids,
         )
         
-        config = {"configurable": {"thread_id": initial_state["workflow_id"]}}
+        workflow_id = initial_state["workflow_id"]
+        config = {"configurable": {"thread_id": workflow_id}}
         
-        # Run until first pause point
-        result = self.graph.invoke(initial_state, config)
+        # Start conversation logging session
+        conv_logger = get_conversation_logger()
+        conv_logger.start_session("book_generation", workflow_id)
+        conv_logger.log_system(
+            "Orchestrator",
+            f"Starting workflow: project={project_id}, sources={len(source_material_ids)}"
+        )
         
-        return {
-            "workflow_id": initial_state["workflow_id"],
-            "state": result,
-        }
+        try:
+            # Run until first pause point
+            result = self.graph.invoke(initial_state, config)
+            
+            # Log pause point
+            conv_logger.log_system(
+                "Orchestrator",
+                f"Workflow paused at: {result.get('phase', 'unknown')} - {result.get('current_step', '')}"
+            )
+            
+            # Dump conversation log to file
+            log_path = conv_logger.dump_to_file()
+            logger.info(f"📝 Conversation log saved: {log_path}")
+            
+            return {
+                "workflow_id": workflow_id,
+                "state": result,
+                "conversation_log": str(log_path),
+            }
+            
+        except Exception as e:
+            conv_logger.log_system("Orchestrator", f"ERROR: {str(e)}")
+            conv_logger.end_session(status="failed", error=str(e))
+            conv_logger.dump_to_file()
+            raise
     
     def resume(
         self,
@@ -399,28 +432,67 @@ class BookGenerationWorkflow:
         """Resume a paused workflow."""
         config = {"configurable": {"thread_id": workflow_id}}
         
+        # Resume conversation logging session
+        conv_logger = get_conversation_logger()
+        conv_logger.start_session("book_generation_resume", workflow_id)
+        conv_logger.log_system(
+            "Orchestrator",
+            f"Resuming workflow: {workflow_id}"
+        )
+        
         # Get current state
         state = self.graph.get_state(config)
         
         if user_input:
+            # Log user input
+            conv_logger.log_system(
+                "User",
+                f"User input received: {user_input}"
+            )
+            
             # Apply user input to state
             state_values = dict(state.values)
             if user_input.get("approve_outline"):
                 state_values["outline_approved"] = True
                 state_values["pending_user_action"] = None
+                conv_logger.log_system("Orchestrator", "Outline approved by user")
             if user_input.get("feedback"):
                 state_values["user_feedback"].append(user_input["feedback"])
+                conv_logger.log_system("Orchestrator", f"Feedback added: {user_input['feedback'][:100]}...")
             
             # Update state
             self.graph.update_state(config, state_values)
         
-        # Continue execution
-        result = self.graph.invoke(None, config)
-        
-        return {
-            "workflow_id": workflow_id,
-            "state": result,
-        }
+        try:
+            # Continue execution
+            result = self.graph.invoke(None, config)
+            
+            # Log completion/pause
+            final_phase = result.get('phase', 'unknown')
+            if final_phase == "completed":
+                conv_logger.log_system("Orchestrator", "✅ Workflow completed successfully!")
+                conv_logger.end_session(status="completed")
+            else:
+                conv_logger.log_system(
+                    "Orchestrator",
+                    f"Workflow at: {final_phase} - {result.get('current_step', '')}"
+                )
+            
+            # Dump conversation log
+            log_path = conv_logger.dump_to_file()
+            logger.info(f"📝 Conversation log saved: {log_path}")
+            
+            return {
+                "workflow_id": workflow_id,
+                "state": result,
+                "conversation_log": str(log_path),
+            }
+            
+        except Exception as e:
+            conv_logger.log_system("Orchestrator", f"ERROR: {str(e)}")
+            conv_logger.end_session(status="failed", error=str(e))
+            conv_logger.dump_to_file()
+            raise
     
     def get_state(self, workflow_id: str) -> dict:
         """Get current workflow state."""
