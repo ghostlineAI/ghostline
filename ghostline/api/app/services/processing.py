@@ -120,14 +120,14 @@ class ProcessingService:
             )
             
             # Update status
-            material.processing_status = ProcessingStatus.PROCESSED
+            material.processing_status = ProcessingStatus.COMPLETED
             db.commit()
             
             return ProcessingResult(
                 material_id=material.id,
                 chunks_created=chunks_created,
                 total_words=extracted.word_count,
-                status=ProcessingStatus.PROCESSED,
+                status=ProcessingStatus.COMPLETED,
             )
             
         except Exception as e:

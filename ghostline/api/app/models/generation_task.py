@@ -62,8 +62,8 @@ class GenerationTask(Base):
     output_data = Column(JSON, default=dict)
     error_message = Column(Text)
 
-    # Metrics
-    token_usage = Column(Integer, default=0)
+    # Metrics (token_usage is JSON to store detailed breakdown)
+    token_usage = Column(JSON, default=dict)
     estimated_cost = Column(Float, default=0.0)
     execution_time = Column(Integer)  # in seconds
 

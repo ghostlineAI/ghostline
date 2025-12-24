@@ -82,3 +82,4 @@ export const handleApiError = (error: unknown): string => {
   return 'An unexpected error occurred';
 };
 
+

@@ -98,3 +98,4 @@ echo "  - Redis:      localhost:6379"
 echo ""
 echo "Auth is DISABLED - no login required for local development!"
 
+

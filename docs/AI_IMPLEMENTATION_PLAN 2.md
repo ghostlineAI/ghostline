@@ -1,0 +1,535 @@
+# GhostLine AI Implementation Plan
+
+**Last Updated**: Based on E2E System Tests (29/29 tests passed)
+
+---
+
+## E2E Test Results Summary
+
+```
+================================================================================
+CONFIRMED GAPS (verified by automated tests)
+================================================================================
+  📍 GenerationService is EMPTY (gap)
+  📍 ProcessingService is EMPTY (gap)
+  📍 Generation endpoint MISSING (gap)
+  📍 Outline generation endpoint MISSING (gap)
+  📍 Task routes defined but tasks MISSING (gap)
+  📍 No LLM client service exists (gap)
+  📍 No embedding service exists (gap)
+  📍 No document processor exists (gap)
+  📍 Agent base/ is EMPTY (gap)
+  📍 Agent specialized/ is EMPTY (gap)
+```
+
+---
+
+## Gap Analysis: AI_plan.txt vs Current Implementation
+
+### What Exists (Infrastructure Layer) ✅ VERIFIED BY TESTS
+
+| Component | Status | Location | Test |
+|-----------|--------|----------|------|
+| **Database Models (15 tables)** | ✅ Complete | `ghostline/api/app/models/` | `test_models_load` |
+| - VoiceProfile (with 1536-dim embedding) | ✅ | `voice_profile.py` | `test_voice_profile_embedding` |
+| - ContentChunk (with embedding) | ✅ | `content_chunk.py` | `test_content_chunk_embedding` |
+| - GenerationTask (task tracking) | ✅ | `generation_task.py` | `test_generation_task_model` |
+| - Chapter, BookOutline, ChapterRevision | ✅ | respective files | included in model test |
+| **pgvector Extension** | ✅ Configured | Alembic migration | `test_api_pgvector` |
+| **Celery for Async Tasks** | ✅ Configured | `celery_app.py` | `test_celery_config` |
+| **File Storage (local mode)** | ✅ Working | `services/storage.py` | `test_storage_service` |
+| **Auth Service** | ✅ Working | `services/auth.py` | `test_auth_service` |
+| **API Endpoints (projects, auth, files)** | ✅ Working | `api/v1/endpoints/` | multiple tests |
+| **Frontend Generation UI** | ✅ Shell exists | `generation-wizard.tsx` | manual inspection |
+| **Dependencies (agents pyproject)** | ✅ | LangGraph, sentence-transformers, unstructured | 3 tests |
+
+### What's Missing (The "Science") ❌ VERIFIED BY TESTS
+
+| Component | Status | Required By | Test |
+|-----------|--------|-------------|------|
+| **LLM Integration** | ❌ Empty | All agents | `test_no_llm_client` |
+| **Document Processing** | ❌ Not implemented | Source material ingestion | `test_no_doc_processor` |
+| **Embedding Generation** | ❌ Not implemented | Voice analysis, RAG | `test_no_embedding_service` |
+| **GenerationService** | ❌ `class GenerationService: pass` | API | `test_generation_service_empty` |
+| **ProcessingService** | ❌ `class ProcessingService: pass` | API | `test_processing_service_empty` |
+| **Generation Endpoint** | ❌ Frontend calls non-existent endpoint | Frontend | `test_generation_endpoint_missing` |
+| **Outline Generation** | ❌ No POST to outline | Frontend | `test_outline_generation_missing` |
+| **Celery Tasks** | ❌ Routes defined, tasks don't exist | Background jobs | `test_celery_tasks_missing` |
+| **Agent base class** | ❌ Empty folder | All agents | `test_agents_base_empty` |
+| **Specialized agents** | ❌ Empty folder | Core workflow | `test_agents_specialized_empty` |
+
+---
+
+## Implementation Roadmap
+
+### Phase 1: Core AI Foundation (Week 1)
+**Goal**: Build the primitives that all agents will use
+
+#### 1.1 LLM Client Service
+Create a unified interface for calling LLMs (Claude, GPT-4, local models).
+
+```
+ghostline/api/app/services/llm.py
+├── LLMClient (abstract base)
+├── ClaudeClient (Anthropic API)
+├── OpenAIClient (OpenAI API)
+└── LocalLLMClient (for testing without API costs)
+```
+
+**Key Features**:
+- Streaming support for real-time generation
+- Token counting and cost estimation
+- Retry logic with exponential backoff
+- Model routing (cheap models for simple tasks, expensive for quality-critical)
+
+**Dependencies to add**:
+```
+anthropic>=0.40.0
+openai>=1.50.0
+tiktoken>=0.7.0
+```
+
+#### 1.2 Embedding Service
+Generate and store embeddings for voice analysis and RAG.
+
+```
+ghostline/api/app/services/embeddings.py
+├── EmbeddingService
+│   ├── generate_embedding(text) -> list[float]
+│   ├── batch_embed(texts) -> list[list[float]]
+│   └── similarity(embedding1, embedding2) -> float
+```
+
+**Uses**: `sentence-transformers` (as specified in ADR-0001)
+- Model: `all-MiniLM-L6-v2` for speed, or `all-mpnet-base-v2` for accuracy
+- Fallback: OpenAI `text-embedding-ada-002`
+
+**Dependencies to add**:
+```
+sentence-transformers>=3.0.0
+```
+
+#### 1.3 Document Processing Service
+Extract text from various file formats.
+
+```
+ghostline/api/app/services/document_processor.py
+├── DocumentProcessor
+│   ├── process(file_path, file_type) -> ExtractedContent
+│   ├── chunk_text(text, chunk_size=1000) -> list[Chunk]
+│   └── extract_metadata(file_path) -> dict
+```
+
+**Uses**: `unstructured` (as specified in ADR-0001)
+- Supports: PDF, DOCX, TXT, Markdown, Audio transcripts
+- Outputs: Clean text with structural metadata
+
+**Dependencies to add**:
+```
+unstructured>=0.15.0
+unstructured[pdf]>=0.15.0
+python-docx>=1.1.0
+```
+
+---
+
+### Phase 2: Memory System (Week 2)
+**Goal**: Enable agents to retrieve relevant context and maintain consistency
+
+#### 2.1 Vector Store Service
+Query the pgvector database for semantic search.
+
+```
+ghostline/api/app/services/vector_store.py
+├── VectorStore
+│   ├── index_chunk(chunk: ContentChunk) -> None
+│   ├── search(query: str, project_id: UUID, top_k=5) -> list[ContentChunk]
+│   ├── search_by_embedding(embedding, top_k=5) -> list[ContentChunk]
+│   └── delete_by_source_material(source_id) -> None
+```
+
+**Implementation**:
+- Uses SQLAlchemy with pgvector for similarity queries
+- Cosine similarity: `embedding <=> query_embedding`
+- Indexed with `vector_cosine_ops`
+
+#### 2.2 Memory Service (Running Summaries)
+Track what's happened in the book so far.
+
+```
+ghostline/api/app/services/memory.py
+├── MemoryService
+│   ├── get_book_context(project_id) -> BookContext
+│   ├── get_chapter_summary(chapter_id) -> str
+│   ├── update_chapter_summary(chapter_id, summary) -> None
+│   └── get_character_facts(project_id, character_name) -> list[str]
+```
+
+**BookContext includes**:
+- Current outline
+- Summaries of all previous chapters
+- Key entities/characters mentioned
+- Timeline of events (if applicable)
+
+#### 2.3 Story Graph (Optional - Advanced)
+Structured representation of narrative elements.
+
+```
+ghostline/api/app/services/story_graph.py
+├── StoryGraph
+│   ├── add_event(event: NarrativeEvent) -> None
+│   ├── get_timeline() -> list[NarrativeEvent]
+│   ├── check_consistency(new_event) -> list[Conflict]
+│   └── get_related_events(entity) -> list[NarrativeEvent]
+```
+
+**Note**: This is advanced functionality. Start without it and add later.
+
+---
+
+### Phase 3: Base Agent Framework (Week 3)
+**Goal**: Create reusable agent patterns
+
+#### 3.1 Agent Base Class
+
+```
+ghostline/agents/agents/base/agent.py
+├── BaseAgent (ABC)
+│   ├── name: str
+│   ├── description: str
+│   ├── llm_client: LLMClient
+│   ├── execute(input: AgentInput) -> AgentOutput
+│   ├── build_prompt(context) -> str
+│   └── parse_response(response) -> AgentOutput
+```
+
+**Features**:
+- Standardized input/output schemas
+- Automatic token tracking
+- Logging and observability hooks
+- Error handling
+
+#### 3.2 Orchestrator
+
+```
+ghostline/agents/orchestrator/workflow.py
+├── BookGenerationWorkflow
+│   ├── state: WorkflowState
+│   ├── run_outline_phase() -> Outline
+│   ├── run_chapter_phase(chapter_num) -> Chapter
+│   ├── request_user_feedback(question) -> None
+│   └── compile_book() -> Book
+```
+
+**Pattern**: Sequential with checkpoints
+1. Analyze source materials
+2. Generate outline → User approval checkpoint
+3. For each chapter:
+   - Draft → Stylize → Fact-check → Cohesion check
+   - User approval checkpoint
+4. Final compilation
+
+**Option**: Use LangGraph for state machine, OR simpler Python async workflows first.
+
+#### 3.3 Prompt Templates
+
+```
+ghostline/agents/prompts/
+├── outline_planner.py
+├── content_drafter.py
+├── stylistic_editor.py
+├── fact_checker.py
+└── cohesion_analyst.py
+```
+
+Each contains structured prompts with:
+- System prompt (agent role)
+- Context injection points
+- Output format specification
+- Examples (few-shot)
+
+---
+
+### Phase 4: Specialized Agents (Week 4-5)
+**Goal**: Implement the "writer's room" agents from the plan
+
+#### 4.1 Outline Planner Agent
+```python
+class OutlinePlannerAgent(BaseAgent):
+    """Creates book structure from source materials."""
+    
+    def execute(self, project_id: UUID) -> BookOutline:
+        # 1. Retrieve all source material summaries
+        # 2. Analyze themes, chronology, key points
+        # 3. Generate hierarchical outline
+        # 4. Return structured outline for user approval
+```
+
+#### 4.2 Content Drafter Agent
+```python
+class ContentDrafterAgent(BaseAgent):
+    """Writes chapter prose based on outline and sources."""
+    
+    def execute(self, chapter_outline: ChapterOutline, context: BookContext) -> str:
+        # 1. Retrieve relevant chunks via vector search
+        # 2. Include previous chapter summaries
+        # 3. Generate chapter content matching target length
+        # 4. Track word count and key facts introduced
+```
+
+#### 4.3 Voice/Stylistic Editor Agent
+```python
+class VoiceAgent(BaseAgent):
+    """Ensures output matches author's writing style."""
+    
+    def execute(self, draft: str, voice_profile: VoiceProfile) -> str:
+        # 1. Compare draft embedding to voice profile embedding
+        # 2. If similarity < 0.88, rewrite to match style
+        # 3. Preserve factual content while adjusting voice
+        # 4. Return similarity score + revised text
+```
+
+#### 4.4 Fact Checker Agent
+```python
+class FactCheckerAgent(BaseAgent):
+    """Validates consistency with source materials."""
+    
+    def execute(self, chapter: str, project_id: UUID) -> FactCheckResult:
+        # 1. Extract factual claims from chapter
+        # 2. Search source materials for each claim
+        # 3. Flag unsupported or contradictory claims
+        # 4. Return list of issues + suggested corrections
+```
+
+#### 4.5 Cohesion Analyst Agent
+```python
+class CohesionAgent(BaseAgent):
+    """Reviews for narrative flow and engagement."""
+    
+    def execute(self, chapter: str, outline: BookOutline, prev_chapters: list) -> CohesionResult:
+        # 1. Check chapter covers outline beats
+        # 2. Verify transitions from previous chapter
+        # 3. Analyze pacing and engagement
+        # 4. Suggest improvements
+```
+
+---
+
+### Phase 5: Workflow Integration (Week 6)
+**Goal**: Wire agents to API and frontend
+
+#### 5.1 Generation Endpoints
+```
+POST /api/v1/projects/{id}/analyze      # Start source material analysis
+POST /api/v1/projects/{id}/outline      # Generate book outline
+POST /api/v1/projects/{id}/generate     # Start chapter generation
+GET  /api/v1/projects/{id}/tasks        # Get generation task status
+POST /api/v1/projects/{id}/feedback     # Submit user feedback
+```
+
+#### 5.2 Celery Task Definitions
+```
+ghostline/api/app/tasks/generation.py
+├── analyze_source_materials_task
+├── generate_outline_task
+├── generate_chapter_task
+├── run_quality_checks_task
+└── compile_book_task
+```
+
+#### 5.3 Progress Tracking
+- Update `GenerationTask` records in real-time
+- WebSocket or polling for frontend updates
+- Emit events: `task_started`, `task_progress`, `task_completed`, `feedback_needed`
+
+---
+
+### Phase 6: User Feedback Loop (Week 7)
+**Goal**: Enable iterative collaboration
+
+#### 6.1 Feedback System
+```
+ghostline/api/app/services/feedback.py
+├── FeedbackService
+│   ├── request_clarification(question, context) -> FeedbackRequest
+│   ├── await_response(request_id) -> FeedbackResponse
+│   └── apply_feedback(response, workflow_state) -> None
+```
+
+**Feedback Types**:
+- `APPROVAL` - User approves outline/chapter
+- `REVISION` - User requests changes
+- `CLARIFICATION` - User answers AI's question
+- `REJECTION` - User wants complete rewrite
+
+#### 6.2 Question Generation
+AI generates clarifying questions when:
+- Source materials are ambiguous
+- Timeline/facts are unclear
+- User intent for a section is uncertain
+- Conflicting information found
+
+---
+
+## Recommended Starting Point
+
+Given that the local dev environment is now working, I recommend this order:
+
+### Immediate Next Steps (This Session)
+
+1. **Add AI dependencies to `pyproject.toml`**
+   - anthropic, openai, sentence-transformers, unstructured
+
+2. **Create LLM Client Service** (`services/llm.py`)
+   - Start with OpenAI/Anthropic API wrappers
+   - Add mock mode for testing without API keys
+
+3. **Create Embedding Service** (`services/embeddings.py`)
+   - Use sentence-transformers locally
+   - Wire to ContentChunk model
+
+4. **Create Document Processor** (`services/document_processor.py`)
+   - Basic text extraction from uploaded files
+   - Chunking with overlap
+
+5. **Create Vector Store Service** (`services/vector_store.py`)
+   - pgvector queries
+   - Test with sample data
+
+### What Can Be Reused
+
+✅ **Keep and extend**:
+- All database models (well-designed)
+- GenerationTask tracking system
+- Celery infrastructure
+- Frontend generation wizard (just needs real API)
+- Project/chapter structure
+
+### What Needs Rebuilding
+
+❌ **Replace/implement from scratch**:
+- `services/generation.py` (currently empty)
+- `services/processing.py` (currently empty)
+- All agent implementations (empty folders)
+- Orchestrator logic (doesn't exist)
+
+---
+
+## Technology Decisions
+
+Based on AI_plan.txt and ADR-0001, use:
+
+| Component | Technology | Reason |
+|-----------|------------|--------|
+| Agent Framework | Start simple, consider LangGraph later | LangGraph is powerful but complex; validate concept first |
+| Primary LLM | Claude 3.5 Sonnet via Anthropic API | Best quality/cost for long-form writing |
+| Secondary LLM | GPT-4o via OpenAI API | Fallback + specific tasks |
+| Embeddings | sentence-transformers (local) | Free, fast, good quality |
+| Document Processing | unstructured.io | Multi-format support |
+| Vector DB | pgvector (already set up) | Already integrated, simple |
+| Async Processing | Celery + Redis (already set up) | Already integrated |
+
+---
+
+## Cost Estimates (per book)
+
+Assuming a 50,000-word book (10 chapters):
+
+| Task | Tokens | Model | Cost |
+|------|--------|-------|------|
+| Source Analysis | ~100k input | Claude Haiku | $0.025 |
+| Outline Generation | ~50k in/out | Claude Sonnet | $0.45 |
+| Chapter Drafting (10x) | ~500k in/out | Claude Sonnet | $4.50 |
+| Voice Editing (10x) | ~300k in/out | Claude Haiku | $0.075 |
+| Fact Checking (10x) | ~200k in/out | Claude Haiku | $0.05 |
+| **Total** | | | **~$5.10/book** |
+
+This is rough but shows the system is economically viable.
+
+---
+
+---
+
+## Revised Implementation Phases (Based on E2E Tests)
+
+Based on E2E test results, here's the prioritized implementation order:
+
+### Phase 0: Fix Critical Frontend/Backend Mismatch (BLOCKING)
+The frontend's `generation-wizard.tsx` calls `POST /projects/{id}/generate` which doesn't exist.
+
+**Files to create/modify:**
+1. `ghostline/api/app/api/v1/endpoints/generation.py` - New generation endpoints
+2. `ghostline/api/app/api/v1/router.py` - Include generation router
+3. `ghostline/api/app/tasks/__init__.py` - Create tasks module
+4. `ghostline/api/app/tasks/generation.py` - Define Celery tasks (stub)
+
+### Phase 1: Core AI Services (Foundation)
+Build the services that all agents will use.
+
+**Files to create:**
+1. `ghostline/api/app/services/llm.py` - LLM client (Anthropic/OpenAI)
+2. `ghostline/api/app/services/embeddings.py` - Embedding generation
+3. `ghostline/api/app/services/document_processor.py` - Text extraction
+
+**Dependencies to add to `ghostline/api/pyproject.toml`:**
+```toml
+anthropic = "^0.40.0"
+openai = "^1.50.0"
+tiktoken = "^0.7.0"
+sentence-transformers = "^3.0.0"
+unstructured = "^0.15.0"
+```
+
+### Phase 2: Implement Empty Services
+Fill in the empty service classes.
+
+**Files to modify:**
+1. `ghostline/api/app/services/generation.py` - Real implementation
+2. `ghostline/api/app/services/processing.py` - Real implementation
+
+**Files to create:**
+1. `ghostline/api/app/services/vector_store.py` - pgvector queries
+
+### Phase 3: Agent Framework
+Build the agent infrastructure in `ghostline/agents/`.
+
+**Files to create:**
+1. `ghostline/agents/agents/base/agent.py` - Abstract base agent
+2. `ghostline/agents/agents/base/prompts.py` - Prompt template system
+3. `ghostline/agents/orchestrator/workflow.py` - Book generation workflow
+
+### Phase 4: Specialized Agents
+Implement the agents from AI_plan.txt.
+
+**Files to create:**
+1. `ghostline/agents/agents/specialized/outline_planner.py`
+2. `ghostline/agents/agents/specialized/content_drafter.py`
+3. `ghostline/agents/agents/specialized/voice_editor.py`
+4. `ghostline/agents/agents/specialized/fact_checker.py`
+5. `ghostline/agents/agents/specialized/cohesion_analyst.py`
+
+### Phase 5: Celery Tasks (Wire It Together)
+Connect agents to async background processing.
+
+**Files to modify:**
+1. `ghostline/api/app/tasks/generation.py` - Real task implementations
+2. `ghostline/api/app/core/celery_app.py` - Verify task discovery
+
+### Phase 6: User Feedback Loop
+Enable iterative collaboration.
+
+**Files to create:**
+1. `ghostline/api/app/services/feedback.py` - Feedback management
+2. `ghostline/api/app/api/v1/endpoints/feedback.py` - Feedback endpoints
+
+---
+
+## Questions for You
+
+1. **API Keys**: Do you have Anthropic and/or OpenAI API keys ready?
+2. **LangGraph vs Simple**: Start with simple Python async orchestration, or jump to LangGraph?
+3. **Priority**: Focus on outline generation first, or end-to-end flow (even if shallow)?
+4. **Voice Similarity**: Target the 0.88 threshold now, or get basic generation working first?
+
+Let me know and I'll start implementing Phase 0 (fix the frontend/backend mismatch) and Phase 1 (core AI services)!
+

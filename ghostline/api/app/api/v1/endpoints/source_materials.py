@@ -19,6 +19,7 @@ from app.models.project import Project
 from app.models.source_material import SourceMaterial, MaterialType, ProcessingStatus
 from app.models.user import User
 from app.services.storage import StorageService
+from app.services.processing import get_processing_service
 
 router = APIRouter()
 
@@ -142,20 +143,35 @@ async def upload_file(
                 "original_filename": file.filename,
                 "upload_timestamp": datetime.utcnow().isoformat(),
             },
-            processing_status=ProcessingStatus.COMPLETED,
-            processed_at=datetime.utcnow()
+            processing_status=ProcessingStatus.PENDING,  # Start as pending
         )
+        
+        # Store local path for local development
+        if storage_service.use_local:
+            source_material.local_path = str(storage_service.local_path / file_key)
 
         db.add(source_material)
         db.commit()
         db.refresh(source_material)
+        
+        # Process the source material (extract text, chunk, embed)
+        processing_service = get_processing_service()
+        try:
+            result = processing_service.process_source_material(source_material, db)
+            print(f"[UPLOAD] Processed {source_material.filename}: {result.chunks_created} chunks, {result.total_words} words")
+        except Exception as e:
+            print(f"[UPLOAD] Warning: Processing failed for {source_material.filename}: {e}")
+            # Don't fail the upload, just mark as failed processing
+            source_material.processing_status = ProcessingStatus.FAILED
+            source_material.processing_error = str(e)
+            db.commit()
 
         return {
             "id": str(source_material.id),
             "name": source_material.filename,
             "type": file_extension,
             "size": source_material.file_size,
-            "status": "completed",
+            "status": source_material.processing_status.value.lower() if hasattr(source_material.processing_status, 'value') else "completed",
         }
     except Exception as e:
         db.rollback()

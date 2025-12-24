@@ -192,9 +192,9 @@ class WorkflowService:
         # In real implementation, these would be extracted/embedded chunks
         source_summaries = []
         for sm in source_materials:
-            summary = f"Source: {sm.original_filename}"
-            if sm.metadata:
-                meta = sm.metadata if isinstance(sm.metadata, dict) else json.loads(sm.metadata)
+            summary = f"Source: {sm.filename}"
+            if sm.file_metadata:
+                meta = sm.file_metadata if isinstance(sm.file_metadata, dict) else json.loads(sm.file_metadata)
                 if "summary" in meta:
                     summary += f"\n{meta['summary']}"
             source_summaries.append(summary)
@@ -207,7 +207,7 @@ class WorkflowService:
         # Run the outline subgraph
         result = self.outline_subgraph.run(
             source_summaries=source_summaries,
-            project_title=project.name,
+            project_title=project.title,
             project_description=project.description or "",
             target_chapters=10,  # Could be configurable
             voice_guidance="",
@@ -334,4 +334,5 @@ class WorkflowService:
             task=task,
             user_input={"feedback": feedback},
         )
+
 

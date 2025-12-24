@@ -18,7 +18,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "phase7_schema_fix"
-down_revision: str = "ff58d1e57171_fixed"
+down_revision: str = "a5539dbb4d4e"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -304,4 +304,5 @@ def downgrade() -> None:
     
     # Note: Cannot easily remove enum values in PostgreSQL
     # The new enum values will remain but be unused
+
 

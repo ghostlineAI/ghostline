@@ -23,22 +23,8 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Create base class for models
 Base = declarative_base()
 
-# Import all models here to ensure they are registered with SQLAlchemy
-from app.models.user import User  # noqa
-from app.models.billing_plan import BillingPlan  # noqa
-from app.models.api_key import APIKey  # noqa
-from app.models.project import Project  # noqa
-from app.models.source_material import SourceMaterial  # noqa
-from app.models.content_chunk import ContentChunk  # noqa
-from app.models.voice_profile import VoiceProfile  # noqa
-from app.models.book_outline import BookOutline  # noqa
-from app.models.chapter import Chapter  # noqa
-from app.models.chapter_revision import ChapterRevision  # noqa
-from app.models.generation_task import GenerationTask  # noqa
-from app.models.token_transaction import TokenTransaction  # noqa
-from app.models.qa_finding import QaFinding  # noqa
-from app.models.exported_book import ExportedBook  # noqa
-from app.models.notification import Notification  # noqa
+# NOTE: Model imports moved to avoid circular dependencies
+# Models are registered via app.models.__init__ when the module is imported
 
 
 # Dependency to get DB session

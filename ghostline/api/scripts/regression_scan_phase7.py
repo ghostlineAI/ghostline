@@ -98,7 +98,7 @@ def test_schema_consistency():
         check("ContentChunk has chunk_index column",
               "chunk_index = Column" in cc_content)
         
-        check("ContentChunk has metadata column",
+        check("ContentChunk has chunk_metadata column",
               "metadata = Column" in cc_content)
         
         # REGRESSION CHECK: token_count should be nullable

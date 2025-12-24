@@ -41,7 +41,7 @@ class ContentChunk(Base):
 
     # Citation tracking for RAG grounding
     source_reference = Column(String(500), nullable=True)  # e.g., "Chapter 3, p.45"
-    metadata = Column(JSON, nullable=True)  # Additional structured metadata
+    chunk_metadata = Column("metadata", JSON, nullable=True)  # Additional structured metadata
 
     # Foreign keys
     source_material_id = Column(

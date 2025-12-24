@@ -102,3 +102,4 @@ export function GenerationProgress({ task, onApproveOutline, onViewContent }: Ge
   );
 }
 
+
