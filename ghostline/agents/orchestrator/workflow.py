@@ -249,7 +249,7 @@ def complete_workflow(state: WorkflowState) -> WorkflowState:
     return state
 
 
-def handle_error(state: WorkflowState) -> WorkflowState:
+def handle_workflow_error(state: WorkflowState) -> WorkflowState:
     """Handle workflow errors."""
     state["phase"] = WorkflowPhase.FAILED.value
     state["last_updated"] = datetime.utcnow().isoformat()
@@ -306,7 +306,7 @@ class BookGenerationWorkflow:
         workflow.add_node("review_chapter", review_chapter)
         workflow.add_node("finalize", finalize_book)
         workflow.add_node("complete", complete_workflow)
-        workflow.add_node("error", handle_error)
+        workflow.add_node("handle_error", handle_workflow_error)
         
         # Add edges
         workflow.add_edge(START, "ingest")
@@ -339,7 +339,7 @@ class BookGenerationWorkflow:
         
         workflow.add_edge("finalize", "complete")
         workflow.add_edge("complete", END)
-        workflow.add_edge("error", END)
+        workflow.add_edge("handle_error", END)
         
         return workflow.compile(checkpointer=self.checkpointer)
     
