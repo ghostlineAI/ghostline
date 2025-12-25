@@ -88,17 +88,30 @@ class WorkflowService:
         
         source_material_ids = [str(sm.id) for sm in source_materials]
         
-        # Start the workflow
+        # Get page/chapter configuration from task input_data
+        input_data = task.input_data or {}
+        target_pages = input_data.get("target_pages")
+        target_chapters = input_data.get("target_chapters", 3)
+        words_per_page = input_data.get("words_per_page", 250)
+        
+        # Start the workflow with page configuration
         result = self.workflow.start(
             project_id=str(project.id),
             user_id=str(project.owner_id),
             source_material_ids=source_material_ids,
+            target_pages=target_pages,
+            target_chapters=target_chapters,
+            words_per_page=words_per_page,
         )
         
         # Store workflow_id in task output_data
-        task.output_data = task.output_data or {}
-        task.output_data["workflow_id"] = result["workflow_id"]
-        task.output_data["workflow_state"] = result["state"]
+        existing_output = task.output_data or {}
+        task.output_data = {
+            **dict(existing_output),
+            "workflow_id": result.get("workflow_id"),
+            "workflow_state": result.get("state"),
+            "conversation_log": result.get("conversation_log"),
+        }
         
         # Update task progress based on workflow state
         state = result["state"]
@@ -145,7 +158,12 @@ class WorkflowService:
         
         # Update task state
         state = result["state"]
-        task.output_data["workflow_state"] = state
+        existing_output = task.output_data or {}
+        task.output_data = {
+            **dict(existing_output),
+            "workflow_state": state,
+            "conversation_log": result.get("conversation_log"),
+        }
         task.progress = state.get("progress", 0)
         task.current_step = state.get("current_step", "Running workflow...")
         task.status = TaskStatus.RUNNING
@@ -205,11 +223,13 @@ class WorkflowService:
         self.db.commit()
         
         # Run the outline subgraph
+        input_data = task.input_data or {}
+        target_chapters = int(input_data.get("target_chapters") or 10)
         result = self.outline_subgraph.run(
             source_summaries=source_summaries,
             project_title=project.title,
             project_description=project.description or "",
-            target_chapters=10,  # Could be configurable
+            target_chapters=target_chapters,
             voice_guidance="",
         )
         
@@ -238,6 +258,7 @@ class WorkflowService:
         chapter_number: int,
         chapter_outline: dict,
         source_chunks: list[str] = None,
+        source_chunks_with_citations: list[dict] = None,
         previous_summaries: list[str] = None,
         voice_profile: dict = None,
     ) -> dict:
@@ -263,12 +284,17 @@ class WorkflowService:
         self.db.commit()
         
         # Run the chapter subgraph
+        input_data = task.input_data or {}
+        # Optional: allow callers to specify approximate length targets
+        target_words = int(input_data.get("target_words") or 3000)
         result = self.chapter_subgraph.run(
             chapter_outline=chapter_outline,
             source_chunks=source_chunks or [],
+            source_chunks_with_citations=source_chunks_with_citations or [],
             previous_summaries=previous_summaries or [],
             voice_profile=voice_profile or {},
-            target_words=3000,  # Could be configurable
+            target_words=target_words,
+            project_id=str(project.id),
         )
         
         # Store results
@@ -276,10 +302,14 @@ class WorkflowService:
         task.output_data["chapter"] = {
             "number": chapter_number,
             "content": result["content"],
+            "content_clean": result.get("content_clean"),
             "word_count": result["word_count"],
             "voice_score": result["voice_score"],
             "fact_score": result["fact_score"],
             "cohesion_score": result["cohesion_score"],
+            "citations": result.get("citations", []),
+            "citation_report": result.get("citation_report", {}),
+            "claim_mappings": result.get("claim_mappings", []),
         }
         task.output_data["iterations"] = result["iterations"]
         task.output_data["tokens_used"] = result["tokens_used"]

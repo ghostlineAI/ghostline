@@ -17,6 +17,7 @@ from app.models.source_material import MaterialType, ProcessingStatus, SourceMat
 from app.models.token_transaction import TokenTransaction, TransactionType
 from app.models.user import User
 from app.models.voice_profile import VoiceProfile
+from app.models.llm_usage_log import LLMUsageLog, LLMProvider, CallType
 
 __all__ = [
     "User",
@@ -47,4 +48,7 @@ __all__ = [
     "Notification",
     "NotificationType",
     "NotificationChannel",
+    "LLMUsageLog",
+    "LLMProvider",
+    "CallType",
 ]

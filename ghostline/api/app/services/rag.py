@@ -170,6 +170,8 @@ class RAGService:
         embedding_str = "[" + ",".join(str(x) for x in query_embedding.embedding) + "]"
         
         # Base query with pgvector cosine distance
+        # IMPORTANT: use `(:query_embedding)::vector` (not `:query_embedding::vector`)
+        # so SQLAlchemy binds the parameter correctly before PostgreSQL casts it.
         sql = text("""
             SELECT 
                 cc.id,
@@ -179,13 +181,13 @@ class RAGService:
                 cc.source_reference,
                 cc.source_material_id,
                 sm.filename,
-                1 - (cc.embedding <=> :query_embedding::vector) as similarity
+                1 - (cc.embedding <=> (:query_embedding)::vector) as similarity
             FROM content_chunks cc
             JOIN source_materials sm ON cc.source_material_id = sm.id
             WHERE cc.project_id = :project_id
               AND cc.embedding IS NOT NULL
-              AND 1 - (cc.embedding <=> :query_embedding::vector) >= :threshold
-            ORDER BY cc.embedding <=> :query_embedding::vector
+              AND 1 - (cc.embedding <=> (:query_embedding)::vector) >= :threshold
+            ORDER BY cc.embedding <=> (:query_embedding)::vector
             LIMIT :top_k
         """)
         
@@ -201,6 +203,11 @@ class RAGService:
             rows = result.fetchall()
         except Exception as e:
             logger.error(f"pgvector query failed: {e}")
+            # Ensure the session is usable for fallback queries/commits
+            try:
+                db.rollback()
+            except Exception:
+                pass
             # Fall back to non-vector retrieval
             return self._fallback_retrieve(query, project_id, db, top_k)
         

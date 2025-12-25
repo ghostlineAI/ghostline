@@ -9,10 +9,11 @@ from celery import shared_task
 from datetime import datetime
 from uuid import UUID
 import traceback
+import os
 
 from app.core.celery_app import celery_app
 from app.db.base import SessionLocal
-from app.models.generation_task import GenerationTask, TaskStatus
+from app.models.generation_task import GenerationTask, TaskStatus, TaskType
 from app.models.project import Project
 from app.services.workflow_service import WorkflowService
 
@@ -56,6 +57,18 @@ def generate_book_task(self, task_id: str):
             db.commit()
             return {"error": "Project not found"}
         
+        # Set up cost tracking context
+        try:
+            from agents.base.agent import set_cost_context
+            set_cost_context(
+                project_id=project.id,
+                task_id=task.id,
+                workflow_run_id=f"book_{task_id}",
+                db_session=db,
+            )
+        except ImportError:
+            pass  # Cost tracking optional
+        
         # Initialize workflow service and start generation
         workflow_service = WorkflowService(db)
         result = workflow_service.start_book_generation(task=task, project=project)
@@ -78,6 +91,11 @@ def generate_book_task(self, task_id: str):
             db.commit()
         raise
     finally:
+        try:
+            from agents.base.agent import clear_cost_context
+            clear_cost_context()
+        except ImportError:
+            pass
         db.close()
 
 
@@ -110,6 +128,18 @@ def generate_outline_task(self, task_id: str):
             db.commit()
             return {"error": "Project not found"}
         
+        # Set up cost tracking context
+        try:
+            from agents.base.agent import set_cost_context
+            set_cost_context(
+                project_id=project.id,
+                task_id=task.id,
+                workflow_run_id=f"outline_{task_id}",
+                db_session=db,
+            )
+        except ImportError:
+            pass  # Cost tracking optional
+        
         # Initialize workflow service and generate outline
         workflow_service = WorkflowService(db)
         result = workflow_service.generate_outline(task=task, project=project)
@@ -130,6 +160,11 @@ def generate_outline_task(self, task_id: str):
             db.commit()
         raise
     finally:
+        try:
+            from agents.base.agent import clear_cost_context
+            clear_cost_context()
+        except ImportError:
+            pass
         db.close()
 
 
@@ -142,6 +177,8 @@ def generate_chapter_task(self, task_id: str, chapter_number: int, chapter_outli
     conversation to create high-quality chapter content.
     """
     db = get_db_session()
+    conv_logger = None
+    _conv_session_id = None
     try:
         task = db.query(GenerationTask).filter(GenerationTask.id == task_id).first()
         if not task:
@@ -160,11 +197,46 @@ def generate_chapter_task(self, task_id: str, chapter_number: int, chapter_outli
             db.commit()
             return {"error": "Project not found"}
         
+        # Set up cost tracking context for this task
+        try:
+            from agents.base.agent import set_cost_context
+            set_cost_context(
+                project_id=project.id,
+                task_id=task.id,
+                workflow_run_id=f"chapter_{task_id}_ch{chapter_number}",
+                chapter_number=chapter_number,
+                db_session=db,
+            )
+        except ImportError:
+            pass  # Cost tracking optional
+
+        # Start a dedicated conversation log session for this chapter task so the
+        # full agentic trace can be dumped to disk and retrieved later via
+        # `/tasks/{task_id}/conversation-logs`.
+        try:
+            from agents.core import get_conversation_logger
+
+            conv_logger = get_conversation_logger()
+            _conv_session_id = f"chapter_task_{task_id}_ch{chapter_number}"
+            conv_logger.start_session("chapter_generation", _conv_session_id)
+            conv_logger.log_system(
+                agent_name="Orchestrator",
+                message=(
+                    "Starting chapter generation: "
+                    f"task_id={task_id}, project_id={project.id}, chapter={chapter_number}"
+                ),
+            )
+        except Exception:
+            # Logging must never block generation.
+            conv_logger = None
+            _conv_session_id = None
+        
         # If no chapter_outline provided, try to get from project's existing outline
         if not chapter_outline:
             # Look for an existing outline in a previous task
             outline_task = db.query(GenerationTask).filter(
                 GenerationTask.project_id == project.id,
+                GenerationTask.task_type == TaskType.OUTLINE_GENERATION,
                 GenerationTask.status == TaskStatus.COMPLETED,
             ).order_by(GenerationTask.created_at.desc()).first()
             
@@ -181,6 +253,57 @@ def generate_chapter_task(self, task_id: str, chapter_number: int, chapter_outli
                 "summary": "Auto-generated chapter",
             }
         
+        # Retrieve grounded source chunks for this chapter (RAG)
+        source_chunks: list[str] = []
+        source_chunks_with_citations: list[dict] = []
+        strict_mode = str(os.getenv("GHOSTLINE_STRICT_MODE", "")).strip().lower() in ("1", "true", "yes", "on")
+        try:
+            from app.services.rag import RAGService
+            
+            rag = RAGService()
+            query_parts = [
+                project.title or "",
+                project.description or "",
+                chapter_outline.get("title", ""),
+                chapter_outline.get("summary", ""),
+                " ".join(chapter_outline.get("key_points", []) or []),
+            ]
+            query = " ".join(p for p in query_parts if p).strip()
+            if query:
+                rag_result = rag.retrieve(
+                    query=query,
+                    project_id=project.id,
+                    db=db,
+                    top_k=20,
+                    similarity_threshold=0.2,
+                )
+                for chunk in (rag_result.chunks or []):
+                    source_chunks.append(chunk.to_context_block(include_citation=True))
+
+                    citation_str = None
+                    try:
+                        if chunk.citation and getattr(chunk.citation, "source_filename", None):
+                            citation_str = chunk.citation.source_filename
+                        elif chunk.citation and getattr(chunk.citation, "source_reference", None):
+                            citation_str = chunk.citation.source_reference
+                        elif chunk.citation:
+                            citation_str = chunk.citation.to_citation_string()
+                    except Exception:
+                        citation_str = None
+
+                    source_chunks_with_citations.append(
+                        {
+                            "content": chunk.content,
+                            "citation": citation_str or f"Source chunk {len(source_chunks_with_citations) + 1}",
+                        }
+                    )
+        except Exception:
+            if strict_mode:
+                raise
+            # If retrieval fails, fall back to empty chunks; the agent will handle it
+            source_chunks = []
+            source_chunks_with_citations = []
+        
         # Initialize workflow service and generate chapter
         workflow_service = WorkflowService(db)
         result = workflow_service.generate_chapter(
@@ -188,7 +311,35 @@ def generate_chapter_task(self, task_id: str, chapter_number: int, chapter_outli
             project=project,
             chapter_number=chapter_number,
             chapter_outline=chapter_outline,
+            source_chunks=source_chunks,
+            source_chunks_with_citations=source_chunks_with_citations,
         )
+
+        # Persist the conversation log to disk and record its location on the task.
+        try:
+            if conv_logger:
+                conv_logger.log_system(
+                    agent_name="Orchestrator",
+                    message=f"Chapter {chapter_number} generation complete; dumping conversation log",
+                )
+                session = conv_logger.end_session(status="completed")
+                log_path = conv_logger.dump_to_file(session=session)
+                # IMPORTANT: `output_data` is a JSON column; in-place mutation may not
+                # be detected depending on SQLAlchemy config. Assign a new dict to
+                # ensure the change is persisted.
+                existing_output = task.output_data or {}
+                task.output_data = {
+                    **dict(existing_output),
+                    "conversation_log": str(log_path.resolve()),
+                    "conversation_session_id": _conv_session_id,
+                }
+                db.commit()
+        except Exception:
+            # Don't fail generation if logging fails.
+            try:
+                db.rollback()
+            except Exception:
+                pass
         
         return {
             "status": "completed",
@@ -202,11 +353,46 @@ def generate_chapter_task(self, task_id: str, chapter_number: int, chapter_outli
         
     except Exception as e:
         if task:
+            # If any earlier DB operation failed, the session may be in a failed
+            # transaction state. Roll back so we can persist the failure details.
+            try:
+                db.rollback()
+            except Exception:
+                pass
             task.status = TaskStatus.FAILED
             task.error_message = f"{str(e)}\n{traceback.format_exc()}"
-            db.commit()
+            # Try to end/dump conversation log for debugging.
+            try:
+                if conv_logger:
+                    conv_logger.log_system(
+                        agent_name="Orchestrator",
+                        message=f"ERROR during chapter generation: {str(e)}",
+                    )
+                    session = conv_logger.end_session(status="failed", error=str(e))
+                    log_path = conv_logger.dump_to_file(session=session)
+                    existing_output = task.output_data or {}
+                    task.output_data = {
+                        **dict(existing_output),
+                        "conversation_log": str(log_path.resolve()),
+                        "conversation_session_id": _conv_session_id,
+                    }
+            except Exception:
+                pass
+            try:
+                db.commit()
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
         raise
     finally:
+        # Clear cost tracking context
+        try:
+            from agents.base.agent import clear_cost_context
+            clear_cost_context()
+        except ImportError:
+            pass
         db.close()
 
 

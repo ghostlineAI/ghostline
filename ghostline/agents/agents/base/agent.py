@@ -4,28 +4,75 @@ Base Agent class for the GhostLine multi-agent system.
 All specialized agents inherit from BaseAgent, which provides:
 - LLM integration (Claude/GPT)
 - State management
-- Cost tracking
+- Cost tracking (with database persistence)
 - Output formatting
 - Conversation logging
 """
 
 import os
+import sys
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Generic, Optional, TypeVar
+from uuid import UUID
 
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
 
+# Add API module to path for cost tracking imports
+# agents/agents/base/agent.py -> agents/ -> api/
+API_PATH = Path(__file__).parent.parent.parent.parent / "api"
+if API_PATH.exists() and str(API_PATH) not in sys.path:
+    sys.path.insert(0, str(API_PATH))
+
 # Import conversation logger
 from agents.core import get_conversation_logger
 
 logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cost tracking context (thread-local style)
+# ─────────────────────────────────────────────────────────────────────────────
+_cost_context: dict = {}
+
+
+def set_cost_context(
+    project_id: Optional[UUID] = None,
+    task_id: Optional[UUID] = None,
+    workflow_run_id: Optional[str] = None,
+    chapter_number: Optional[int] = None,
+    db_session=None,
+):
+    """
+    Set the context for cost tracking.
+    Call this before running agent workflows to enable DB persistence.
+    """
+    global _cost_context
+    _cost_context = {
+        "project_id": project_id,
+        "task_id": task_id,
+        "workflow_run_id": workflow_run_id,
+        "chapter_number": chapter_number,
+        "db_session": db_session,
+    }
+
+
+def get_cost_context() -> dict:
+    """Get the current cost tracking context."""
+    return _cost_context.copy()
+
+
+def clear_cost_context():
+    """Clear the cost tracking context."""
+    global _cost_context
+    _cost_context = {}
 
 
 class AgentRole(str, Enum):
@@ -182,6 +229,12 @@ class BaseAgent(ABC, Generic[StateT]):
         conv_logger = get_conversation_logger()
         agent_name = self.__class__.__name__
         
+        # Track fallback state
+        is_fallback = False
+        fallback_reason = None
+        used_model = self.config.model
+        used_provider = self.config.provider.value
+        
         try:
             messages = [
                 SystemMessage(content=self.get_system_prompt()),
@@ -199,19 +252,76 @@ class BaseAgent(ABC, Generic[StateT]):
                 model=self.config.model,
                 context=context or "",
             )
-            
-            response = self.llm.invoke(messages)
+
+            def _should_fallback_to_openai(err: Exception) -> bool:
+                """Return True if we should automatically fall back from Anthropic to OpenAI."""
+                msg = str(err or "").lower()
+                # Anthropic quota/credit exhaustion message
+                if "credit balance is too low" in msg:
+                    return True
+                if "plans & billing" in msg and "anthropic" in msg:
+                    return True
+                # Some clients surface this as quota/insufficient balance
+                if "insufficient" in msg and "anthropic" in msg:
+                    return True
+                return False
+
+            try:
+                response = self.llm.invoke(messages)
+            except Exception as e:
+                # If Anthropic is unavailable (credits/quota), transparently fall back to OpenAI
+                # so the product can still run end-to-end in dev.
+                strict_mode = os.getenv("GHOSTLINE_STRICT_MODE", "").strip().lower() in ("1", "true", "yes", "on")
+                allow_fallback = os.getenv("GHOSTLINE_ALLOW_LLM_FALLBACK", "1").strip().lower() in ("1", "true", "yes", "on")
+                if strict_mode:
+                    allow_fallback = False
+
+                if allow_fallback and self.config.provider == LLMProvider.ANTHROPIC and _should_fallback_to_openai(e):
+                    openai_key = os.getenv("OPENAI_API_KEY")
+                    if openai_key:
+                        fallback_model = os.getenv("OPENAI_FALLBACK_MODEL", "gpt-4o")
+                        conv_logger.log_system(
+                            agent_name=agent_name,
+                            message=(
+                                "Anthropic call failed (likely insufficient credits). "
+                                f"Falling back to OpenAI model={fallback_model}."
+                            ),
+                        )
+                        fallback_llm = ChatOpenAI(
+                            model=fallback_model,
+                            temperature=self.config.temperature,
+                            max_tokens=self.config.max_tokens,
+                            api_key=openai_key,
+                        )
+                        response = fallback_llm.invoke(messages)
+                        # Track fallback
+                        is_fallback = True
+                        fallback_reason = str(e)
+                        used_model = fallback_model
+                        used_provider = "openai"
+                        # Persist fallback for subsequent calls in this agent instance
+                        self.config.provider = LLMProvider.OPENAI
+                        self.config.model = fallback_model
+                        self._llm = fallback_llm
+                    else:
+                        raise e
+                else:
+                    raise e
             
             duration = int((time.time() - start) * 1000)
             
-            # Extract usage info
-            tokens = 0
-            cost = 0.0
+            # Extract usage info - get input/output tokens separately
+            input_tokens = 0
+            output_tokens = 0
+            total_tokens = 0
             if hasattr(response, 'usage_metadata') and response.usage_metadata:
-                tokens = response.usage_metadata.get('total_tokens', 0)
-                cost = self._estimate_cost(tokens)
+                input_tokens = response.usage_metadata.get('input_tokens', 0)
+                output_tokens = response.usage_metadata.get('output_tokens', 0)
+                total_tokens = response.usage_metadata.get('total_tokens', input_tokens + output_tokens)
             
-            self._total_tokens += tokens
+            cost = self._estimate_cost_detailed(input_tokens, output_tokens, used_model, used_provider)
+            
+            self._total_tokens += total_tokens
             self._total_cost += cost
             self._call_count += 1
             
@@ -221,15 +331,30 @@ class BaseAgent(ABC, Generic[StateT]):
             conv_logger.log_response(
                 agent_name=agent_name,
                 response=response_content,
-                tokens_used=tokens,
+                tokens_used=total_tokens,
                 cost=cost,
                 duration_ms=duration,
-                model=self.config.model,
+                model=used_model,
+            )
+            
+            # Record to database if context is set
+            self._record_to_db(
+                agent_name=agent_name,
+                model=used_model,
+                provider=used_provider,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                duration_ms=duration,
+                success=True,
+                is_fallback=is_fallback,
+                fallback_reason=fallback_reason,
+                prompt_preview=prompt,
+                response_preview=response_content,
             )
             
             return AgentOutput(
                 content=response_content,
-                tokens_used=tokens,
+                tokens_used=total_tokens,
                 estimated_cost=cost,
                 duration_ms=duration,
             )
@@ -243,24 +368,113 @@ class BaseAgent(ABC, Generic[StateT]):
                 message=f"ERROR: {str(e)}"
             )
             
+            # Record failed call to database
+            self._record_to_db(
+                agent_name=agent_name,
+                model=used_model,
+                provider=used_provider,
+                input_tokens=0,
+                output_tokens=0,
+                duration_ms=duration,
+                success=False,
+                error_message=str(e),
+                prompt_preview=prompt,
+            )
+            
             return AgentOutput(
                 content="",
                 error=str(e),
                 duration_ms=duration,
             )
     
-    def _estimate_cost(self, tokens: int) -> float:
-        """Estimate cost based on tokens and model."""
-        # Rough pricing per 1K tokens
+    def _record_to_db(
+        self,
+        agent_name: str,
+        model: str,
+        provider: str,
+        input_tokens: int,
+        output_tokens: int,
+        duration_ms: int,
+        success: bool,
+        is_fallback: bool = False,
+        fallback_reason: Optional[str] = None,
+        prompt_preview: Optional[str] = None,
+        response_preview: Optional[str] = None,
+        error_message: Optional[str] = None,
+    ):
+        """Record this LLM call to the database if context is set."""
+        ctx = get_cost_context()
+        db = ctx.get("db_session")
+        
+        if not db:
+            # No DB session set, skip recording
+            return
+        
+        try:
+            from app.services.cost_tracker import CostTracker
+            
+            tracker = CostTracker(db)
+            tracker.record(
+                agent_name=agent_name,
+                model=model,
+                provider=provider,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                duration_ms=duration_ms,
+                success=success,
+                call_type="chat",
+                project_id=ctx.get("project_id"),
+                task_id=ctx.get("task_id"),
+                workflow_run_id=ctx.get("workflow_run_id"),
+                chapter_number=ctx.get("chapter_number"),
+                agent_role=self.config.role.value if self.config.role else None,
+                is_fallback=is_fallback,
+                fallback_reason=fallback_reason,
+                prompt_preview=prompt_preview,
+                response_preview=response_preview,
+                error_message=error_message,
+                metadata={
+                    "temperature": self.config.temperature,
+                    "max_tokens": self.config.max_tokens,
+                },
+            )
+        except Exception as e:
+            # Don't fail the agent call if cost tracking fails
+            logger.warning(f"Failed to record cost to database: {e}")
+    
+    def _estimate_cost_detailed(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        model: str,
+        provider: str,
+    ) -> float:
+        """Estimate cost based on input/output tokens and model."""
+        # Pricing per 1K tokens (input, output)
         pricing = {
-            "claude-sonnet-4-20250514": 0.009,  # Average of input/output
-            "claude-3-5-sonnet-20241022": 0.009,
-            "claude-3-haiku-20240307": 0.001,
-            "gpt-4o": 0.01,
-            "gpt-4o-mini": 0.0004,
+            # Anthropic
+            "claude-sonnet-4-20250514": (0.003, 0.015),
+            "claude-3-5-sonnet-20241022": (0.003, 0.015),
+            "claude-3-5-sonnet-latest": (0.003, 0.015),
+            "claude-3-opus-20240229": (0.015, 0.075),
+            "claude-3-haiku-20240307": (0.00025, 0.00125),
+            # OpenAI
+            "gpt-4o": (0.0025, 0.01),
+            "gpt-4o-2024-11-20": (0.0025, 0.01),
+            "gpt-4o-mini": (0.00015, 0.0006),
+            "gpt-4-turbo": (0.01, 0.03),
+            "gpt-4": (0.03, 0.06),
+            "gpt-3.5-turbo": (0.0005, 0.0015),
         }
-        rate = pricing.get(self.config.model, 0.01)
-        return (tokens / 1000) * rate
+        
+        input_rate, output_rate = pricing.get(model, (0.003, 0.015))
+        return (input_tokens / 1000) * input_rate + (output_tokens / 1000) * output_rate
+    
+    def _estimate_cost(self, tokens: int) -> float:
+        """Estimate cost based on total tokens (legacy method, assumes 50/50 split)."""
+        # Assume roughly 50% input, 50% output for backward compatibility
+        half = tokens // 2
+        return self._estimate_cost_detailed(half, tokens - half, self.config.model, self.config.provider.value)
     
     def get_stats(self) -> dict:
         """Get statistics for this agent."""

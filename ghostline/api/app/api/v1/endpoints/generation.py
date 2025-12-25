@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.api import deps
 from app.models.generation_task import GenerationTask, TaskStatus, TaskType
@@ -39,9 +40,17 @@ class FeedbackRequest(BaseModel):
     chapter_number: Optional[int] = None
 
 
+class GenerateBookRequest(BaseModel):
+    """Request to start book generation with optional parameters."""
+    target_pages: Optional[int] = None  # Soft target for total book pages (1 page ≈ 250 words)
+    target_chapters: Optional[int] = 3  # Number of chapters to generate
+    words_per_page: Optional[int] = 250  # Words per page for calculations
+
+
 @router.post("/{project_id}/generate")
 async def start_book_generation(
     project_id: UUID,
+    request: Optional[GenerateBookRequest] = None,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
@@ -51,6 +60,11 @@ async def start_book_generation(
     This creates a generation task and queues it for async processing.
     The frontend can poll the task status endpoint to track progress.
     
+    Optional parameters:
+    - target_pages: Soft target for total book pages (1 page ≈ 250 words)
+    - target_chapters: Number of chapters to generate (default: 3)
+    - words_per_page: Words per page for calculations (default: 250)
+    
     The workflow will:
     1. Ingest and embed source materials
     2. Generate an outline (pauses for approval)
@@ -59,6 +73,10 @@ async def start_book_generation(
     5. Run fact-checking and cohesion analysis
     6. Finalize the book
     """
+    # Parse optional request parameters
+    target_pages = request.target_pages if request else None
+    target_chapters = request.target_chapters if request else 3
+    words_per_page = request.words_per_page if request else 250
     # Verify project exists and user owns it
     project = db.query(Project).filter(
         Project.id == project_id,
@@ -86,7 +104,7 @@ async def start_book_generation(
             "current_step": existing_task.current_step,
         }
     
-    # Create a new generation task
+    # Create a new generation task with page/chapter configuration
     task = GenerationTask(
         project_id=project_id,
         task_type=TaskType.CHAPTER_GENERATION,
@@ -94,13 +112,24 @@ async def start_book_generation(
         agent_name="orchestrator",
         current_step="Queued for processing...",
         progress=0,
+        input_data={
+            "target_pages": target_pages,
+            "target_chapters": target_chapters,
+            "words_per_page": words_per_page,
+        },
     )
     db.add(task)
     db.commit()
     db.refresh(task)
     
     # Queue the task to Celery for async processing
-    generate_book_task.delay(str(task.id))
+    async_result = generate_book_task.delay(str(task.id))
+    try:
+        task.celery_task_id = async_result.id
+        db.commit()
+    except Exception:
+        # Don't fail request if celery_task_id persistence fails.
+        db.rollback()
     
     return {
         "message": "Book generation started",
@@ -149,7 +178,12 @@ async def generate_outline(
     db.refresh(task)
     
     # Queue to Celery
-    generate_outline_task.delay(str(task.id))
+    async_result = generate_outline_task.delay(str(task.id))
+    try:
+        task.celery_task_id = async_result.id
+        db.commit()
+    except Exception:
+        db.rollback()
     
     return {
         "message": "Outline generation started",
@@ -199,7 +233,12 @@ async def generate_single_chapter(
     db.refresh(task)
     
     # Queue to Celery
-    generate_chapter_task.delay(str(task.id), chapter_number)
+    async_result = generate_chapter_task.delay(str(task.id), chapter_number)
+    try:
+        task.celery_task_id = async_result.id
+        db.commit()
+    except Exception:
+        db.rollback()
     
     return {
         "message": f"Chapter {chapter_number} generation started",
@@ -246,7 +285,12 @@ async def analyze_voice(
     db.refresh(task)
     
     # Queue to Celery
-    analyze_voice_task.delay(str(task.id))
+    async_result = analyze_voice_task.delay(str(task.id))
+    try:
+        task.celery_task_id = async_result.id
+        db.commit()
+    except Exception:
+        db.rollback()
     
     return {
         "message": "Voice analysis started",
@@ -389,7 +433,12 @@ async def approve_outline(
         user_input["feedback"] = {"text": request.feedback, "target": "outline"}
     
     # Queue resume task
-    resume_workflow_task.delay(str(task.id), user_input)
+    async_result = resume_workflow_task.delay(str(task.id), user_input)
+    try:
+        task.celery_task_id = async_result.id
+        db.commit()
+    except Exception:
+        db.rollback()
     
     return {
         "message": "Outline approval processed",
@@ -442,7 +491,12 @@ async def provide_feedback(
     
     # If task is paused, resume with feedback
     if task.status == TaskStatus.PAUSED:
-        resume_workflow_task.delay(str(task.id), {"feedback": feedback_data})
+        async_result = resume_workflow_task.delay(str(task.id), {"feedback": feedback_data})
+        try:
+            task.celery_task_id = async_result.id
+            db.commit()
+        except Exception:
+            db.rollback()
         return {
             "message": "Feedback submitted and workflow resumed",
             "task_id": str(task.id),
@@ -501,11 +555,75 @@ async def resume_task(
         )
     
     # Resume the workflow
-    resume_workflow_task.delay(str(task.id))
+    async_result = resume_workflow_task.delay(str(task.id))
+    try:
+        task.celery_task_id = async_result.id
+        db.commit()
+    except Exception:
+        db.rollback()
     
     return {
         "message": "Task resumed",
         "task_id": str(task.id),
+    }
+
+
+@router.post("/tasks/{task_id}/cancel")
+async def cancel_task(
+    task_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """
+    Cancel a running/queued task.
+    
+    This is primarily used to recover from stuck tasks in local dev.
+    Best-effort attempts to revoke the underlying Celery task if a
+    `celery_task_id` is known.
+    """
+    task = db.query(GenerationTask).filter(GenerationTask.id == task_id).first()
+    
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found"
+        )
+    
+    # Verify user owns the project
+    project = db.query(Project).filter(
+        Project.id == task.project_id,
+        Project.owner_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Task is already finished. Current status: {task.status.value}"
+        )
+    
+    # Best-effort Celery revoke
+    try:
+        from app.core.celery_app import celery_app
+        if task.celery_task_id:
+            celery_app.control.revoke(task.celery_task_id, terminate=False)
+    except Exception:
+        pass
+    
+    task.status = TaskStatus.CANCELLED
+    task.current_step = "Cancelled by user"
+    task.completed_at = datetime.utcnow()
+    db.commit()
+    
+    return {
+        "message": "Task cancelled",
+        "task_id": str(task.id),
+        "status": task.status.value,
     }
 
 

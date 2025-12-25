@@ -1,0 +1,223 @@
+{
+  "project_id": "d1f106cf-5e7e-485a-8595-fcd569bf4676",
+  "book_md_path": "/Users/ageorges/Desktop/GhostLine/exports/mental_health_guide.md",
+  "sources_in_db": [
+    "mental_health.png",
+    "mentalhealth1.pdf",
+    "mentalhealth2.pdf"
+  ],
+  "footnotes_found": 28,
+  "footnotes_verified": 28,
+  "footnotes_missing_quote": 0,
+  "footnotes_missing_source": 0,
+  "footnote_verification_rate": 1.0,
+  "footnote_results": [
+    {
+      "number": 1,
+      "filename": "mentalhealth1.pdf",
+      "quote": "Taking a step back isn't a delay...it's an integral piece",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 2,
+      "filename": "mentalhealth1.pdf",
+      "quote": "Meditation hasn\u2019t been lowering the dread for me, but it has been helping me wade through",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 3,
+      "filename": "mentalhealth1.pdf",
+      "quote": "Sets the bar arbitrarily high for myself & others",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 4,
+      "filename": "mentalhealth1.pdf",
+      "quote": "If our mind is a park, we have benches everywhere",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 5,
+      "filename": "mentalhealth2.pdf",
+      "quote": "You can\u2019t just do a single exercise then be good with it",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 6,
+      "filename": "mentalhealth2.pdf",
+      "quote": "acceptance of ambiguity. There was also space for learning and growth because",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 7,
+      "filename": "mentalhealth2.pdf",
+      "quote": "Make sure that when I have a goal, ask myself whether my values are aligned with",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 8,
+      "filename": "mentalhealth1.pdf",
+      "quote": "Think of these things as a medicine cabinet or fridge - we have different tools we reach for",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 9,
+      "filename": "mentalhealth2.pdf",
+      "quote": "The emotions that come up when I think about this are hopelessness, defeated, sad",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 10,
+      "filename": "mentalhealth2.pdf",
+      "quote": "There\u2019s two ways of saying 'so what' and accepting something",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 11,
+      "filename": "mentalhealth2.pdf",
+      "quote": "Not accepting sadness can lead to dissociation of life",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 12,
+      "filename": "mentalhealth2.pdf",
+      "quote": "Way 1: Say 'so what' in a lighthearted way",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 13,
+      "filename": "mentalhealth1.pdf",
+      "quote": "Batting things away can be self-compassionate",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 14,
+      "filename": "mentalhealth1.pdf",
+      "quote": "Create an exercise called safe place",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 15,
+      "filename": "mentalhealth2.pdf",
+      "quote": "My mindset to seeing challenges as opportunities",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 16,
+      "filename": "mentalhealth1.pdf",
+      "quote": "Self-compassion vs batting things away can work in different circumstances",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 17,
+      "filename": "mentalhealth2.pdf",
+      "quote": "If we can identify who/what is supporting us and how we\u2019re not alone",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 18,
+      "filename": "mentalhealth1.pdf",
+      "quote": "You become a company as you company. There is no manual to follow",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 19,
+      "filename": "mentalhealth1.pdf",
+      "quote": "Step 1: Sadness and overwhelm come in",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 20,
+      "filename": "mentalhealth1.pdf",
+      "quote": "I think my overwhelm right now is mainly coming from the fear of failure",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 21,
+      "filename": "mentalhealth1.pdf",
+      "quote": "I can be an optimist and trust myself",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 22,
+      "filename": "mentalhealth1.pdf",
+      "quote": "The practice of self-compassion doesn\u2019t necessarily mean lowering the standard",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 23,
+      "filename": "mentalhealth2.pdf",
+      "quote": "To help resolve the you won\u2019t win rumination, Take what I have done as a success",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 24,
+      "filename": "mentalhealth1.pdf",
+      "quote": "Self acceptance doesn\u2019t mean lowering the standard. It doesn\u2019t mean there\u2019s no space for improvement",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 25,
+      "filename": "mentalhealth1.pdf",
+      "quote": "When overwhelm, catastrophizing, raising the stakes comes in, practice self-acceptance",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 26,
+      "filename": "mentalhealth2.pdf",
+      "quote": "acceptance of ambiguity. There was also space for learning and growth",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 27,
+      "filename": "mentalhealth2.pdf",
+      "quote": "The ruminations that have been coming in make it hard for me to live my values",
+      "verified": true,
+      "reason": null
+    },
+    {
+      "number": 28,
+      "filename": "mentalhealth2.pdf",
+      "quote": "mental health is like the gym. This is a speci\ufb01c exercise",
+      "verified": true,
+      "reason": null
+    }
+  ],
+  "paragraphs_checked": 28,
+  "paragraphs_uncited": 1,
+  "low_overlap_paragraphs": [
+    {
+      "reason": "no_footnotes_in_paragraph",
+      "overlap": 0.0,
+      "paragraph_preview": "- [Chapter 1: Setting the Stage: Understanding the Mental Health Landscape](#chapter-1-setting-the-stage:-understanding-the-mental-health-landscape)\n- [Chapter 2: Navigating the Dark: Finding Light in the Shadows](#chapter-2-navigating-the-dark:-finding-light-in-the-shadows)\n- [Chapter 3: From Fear ",
+      "refs": []
+    }
+  ],
+  "low_overlap_count": 1
+}

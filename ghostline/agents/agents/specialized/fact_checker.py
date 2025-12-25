@@ -82,12 +82,28 @@ class FactCheckerAgent(BaseAgent[FactCheckState]):
 4. Identify any internal contradictions
 5. Note any claims that seem questionable
 
+CITATION FORMAT (REQUIRED):
+All citations MUST use this exact format:
+[citation: filename.ext - "exact quote from source"]
+
+Examples:
+- [citation: mentalhealth1.pdf - "Taking a step back isn't a delay"]
+- [citation: notes.txt - "meditation helps me wade through"]
+
 CLAIM-TO-SOURCE MAPPING:
 For EACH factual claim, you must:
-- Quote the claim exactly
-- Find the source that supports it (cite by [citation])
-- Indicate if it's supported, partially supported, or unsupported
-- Provide a confidence score (0.0-1.0)
+- Quote the claim exactly as it appears in the content
+- Find the source that supports it using the EXACT citation format above
+- Include the actual quote from the source that supports it
+- Indicate if it's: VERIFIED (exact match), PARAPHRASED (same meaning), or UNSUPPORTED
+- Provide a confidence score (0.0-1.0):
+  * 1.0 = Exact quote match found in source
+  * 0.8-0.9 = Close paraphrase with same meaning
+  * 0.5-0.7 = Related content but modified
+  * 0.0-0.4 = Cannot verify or seems fabricated
+
+FLAG LOW-CONFIDENCE CITATIONS:
+If confidence < 0.7, mark as "needs_human_review": true
 
 For each issue found, provide:
 - The specific claim or statement
@@ -102,6 +118,8 @@ Be thorough but not overly pedantic. Focus on:
 - Internal logic
 - Grounding in source materials
 
+CRITICAL: Never invent quotes. If you cannot find exact supporting text, mark as UNSUPPORTED.
+
 Output findings as structured JSON for easy processing."""
     
     def process(self, state: FactCheckState) -> AgentOutput:
@@ -112,7 +130,7 @@ Output findings as structured JSON for easy processing."""
         
         if state.source_chunks_with_citations:
             chunks_text = []
-            for i, chunk_data in enumerate(state.source_chunks_with_citations[:10]):
+            for i, chunk_data in enumerate(state.source_chunks_with_citations[:15]):
                 citation = chunk_data.get("citation", f"[Source {i+1}]")
                 content = chunk_data.get("content", "")
                 available_sources.append(citation)
@@ -153,16 +171,19 @@ Identify all issues and provide as JSON:
     "accuracy_score": 0.0-1.0,
     "claim_mappings": [
         {{
-            "claim": "exact quote of the factual claim",
-            "source_citation": "[citation] or null if unsupported",
+            "claim": "exact quote of the factual claim from the content",
+            "source_citation": "[citation: filename.ext - \"exact quote\"] or null if unsupported",
+            "source_quote": "the exact text from the source that supports this claim",
+            "verification_status": "VERIFIED|PARAPHRASED|UNSUPPORTED",
             "is_supported": true/false,
             "confidence": 0.0-1.0,
-            "notes": "any additional context"
+            "needs_human_review": true/false (true if confidence < 0.7),
+            "notes": "explanation of how the claim maps to the source"
         }}
     ],
     "findings": [
         {{
-            "type": "unsupported|contradiction|questionable|inaccurate",
+            "type": "unsupported|contradiction|questionable|inaccurate|low_confidence",
             "severity": "low|medium|high",
             "location": "quote or describe where in content",
             "issue": "description of the problem",
@@ -170,7 +191,8 @@ Identify all issues and provide as JSON:
         }}
     ],
     "unsupported_claims": ["list", "of", "claims", "without", "sources"],
-    "summary": "Brief overall assessment including grounding percentage"
+    "low_confidence_citations": ["list", "of", "claims", "with", "confidence", "<0.7"],
+    "summary": "Brief overall assessment including grounding percentage and any concerns"
 }}
 
 If content is accurate and well-grounded, return high accuracy_score with detailed claim_mappings."""
@@ -298,4 +320,89 @@ Respond with JSON:
                 except json.JSONDecodeError:
                     pass
             return {"accuracy_score": 0.5, "findings": [], "summary": "Could not parse results"}
+    
+    def verify_citations_against_sources(
+        self,
+        claim_mappings: list[dict],
+        source_chunks: list[dict],
+    ) -> list[dict]:
+        """
+        Post-process claim mappings to verify citations actually exist in sources.
+        
+        Args:
+            claim_mappings: List of claim mapping dicts from fact check
+            source_chunks: List of {"content": str, "citation": str} source chunks
+            
+        Returns:
+            Updated claim mappings with verification results
+        """
+        # Build a searchable index of source content
+        source_index = {}
+        for chunk in source_chunks:
+            citation = chunk.get("citation", "")
+            content = chunk.get("content", "").lower()
+            if citation not in source_index:
+                source_index[citation] = ""
+            source_index[citation] += " " + content
+        
+        all_source_text = " ".join(source_index.values()).lower()
+        
+        verified_mappings = []
+        for mapping in claim_mappings:
+            source_quote = mapping.get("source_quote", "")
+            if source_quote:
+                # Check if the quote actually exists in sources
+                quote_lower = source_quote.lower()[:100]  # First 100 chars
+                
+                if quote_lower in all_source_text:
+                    mapping["quote_verified"] = True
+                else:
+                    # Quote not found - flag it
+                    mapping["quote_verified"] = False
+                    mapping["needs_human_review"] = True
+                    mapping["confidence"] = min(mapping.get("confidence", 0.5), 0.5)
+                    mapping["notes"] = (mapping.get("notes", "") + 
+                        " [WARNING: Source quote could not be verified in provided materials]").strip()
+            else:
+                mapping["quote_verified"] = None  # No quote provided
+            
+            verified_mappings.append(mapping)
+        
+        return verified_mappings
+    
+    def get_citation_quality_report(self, claim_mappings: list[dict]) -> dict:
+        """
+        Generate a quality report for citations.
+        
+        Returns:
+            Dict with citation quality metrics
+        """
+        total = len(claim_mappings)
+        if total == 0:
+            return {
+                "total_claims": 0,
+                "verified": 0,
+                "needs_review": 0,
+                "unsupported": 0,
+                "quality_score": 1.0,
+            }
+        
+        verified = sum(1 for m in claim_mappings if m.get("is_supported") and m.get("confidence", 0) >= 0.7)
+        needs_review = sum(1 for m in claim_mappings if m.get("needs_human_review"))
+        unsupported = sum(1 for m in claim_mappings if not m.get("is_supported"))
+        
+        quality_score = verified / total if total > 0 else 0
+        
+        return {
+            "total_claims": total,
+            "verified": verified,
+            "needs_review": needs_review,
+            "unsupported": unsupported,
+            "quality_score": quality_score,
+            "recommendation": (
+                "Good" if quality_score >= 0.8 else
+                "Review needed" if quality_score >= 0.5 else
+                "Significant revision needed"
+            ),
+        }
 

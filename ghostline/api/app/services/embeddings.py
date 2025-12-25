@@ -151,22 +151,73 @@ class LocalEmbeddingClient(BaseEmbeddingClient):
     def __init__(self, model: str = "all-mpnet-base-v2"):
         self._model_name = model
         self._model = None
-        self._dimensions = None  # Will be set when model loads
+        self._dimensions: Optional[int] = None  # Will be set when model loads or fallback initializes
+        self._use_hash_fallback = False
+    
+    def _hash_embed(self, text: str, dims: int) -> list[float]:
+        """
+        Lightweight deterministic local embedding fallback (no heavy deps).
+        
+        This is *not* intended to match OpenAI embedding quality; it exists so
+        the system can run offline/unit tests without requiring torch +
+        sentence-transformers.
+        """
+        import hashlib
+        import re
+        
+        if not text or not text.strip():
+            return [0.0] * dims
+        
+        # Tokenize into simple word-like units
+        tokens = re.findall(r"[A-Za-z0-9']+", text.lower())
+        if not tokens:
+            return [0.0] * dims
+        
+        vec = np.zeros(dims, dtype=np.float32)
+        for tok in tokens:
+            digest = hashlib.sha256(tok.encode("utf-8")).digest()
+            # Stable bucket
+            idx = int.from_bytes(digest[:4], "little") % dims
+            # Stable sign
+            sign = 1.0 if (digest[4] & 1) == 0 else -1.0
+            vec[idx] += sign
+        
+        norm = float(np.linalg.norm(vec))
+        if norm == 0.0:
+            return [0.0] * dims
+        vec /= norm
+        return vec.tolist()
     
     @property
     def model(self):
         """Lazy-load the sentence-transformers model."""
         if self._model is None:
-            from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self._model_name)
-            # Get actual dimensions from the model
-            test_emb = self._model.encode("test", normalize_embeddings=True)
-            self._dimensions = len(test_emb)
-            logger.info(f"Loaded local embedding model: {self._model_name} ({self._dimensions} dims)")
+            try:
+                from sentence_transformers import SentenceTransformer
+                self._model = SentenceTransformer(self._model_name)
+                # Get actual dimensions from the model
+                test_emb = self._model.encode("test", normalize_embeddings=True)
+                self._dimensions = len(test_emb)
+                self._use_hash_fallback = False
+                logger.info(
+                    f"Loaded local embedding model: {self._model_name} ({self._dimensions} dims)"
+                )
+            except ModuleNotFoundError:
+                # Graceful fallback: deterministic hash embeddings
+                self._use_hash_fallback = True
+                self._dimensions = 1536
+                self._model = None
+                logger.warning(
+                    "sentence-transformers not installed; using deterministic hash embeddings "
+                    "for LOCAL provider (offline/testing only)."
+                )
         return self._model
     
     @property
     def model_name(self) -> str:
+        # If we couldn't load sentence-transformers, report a clear fallback model name.
+        if self._use_hash_fallback:
+            return f"local-hash-{self.dimensions}"
         return self._model_name
     
     @property
@@ -174,12 +225,16 @@ class LocalEmbeddingClient(BaseEmbeddingClient):
         if self._dimensions is None:
             # Trigger model load to get dimensions
             _ = self.model
-        return self._dimensions or 768  # Default for all-mpnet-base-v2
+        return self._dimensions or 1536
     
     def embed_text(self, text: str) -> list[float]:
         """Generate embedding for a single text using sentence-transformers."""
         if not text or not text.strip():
             return [0.0] * self.dimensions
+        
+        _ = self.model  # ensures fallback flag/dims are set
+        if self._use_hash_fallback:
+            return self._hash_embed(text, self.dimensions)
         
         embedding = self.model.encode(text, normalize_embeddings=True)
         return embedding.tolist()
@@ -188,6 +243,10 @@ class LocalEmbeddingClient(BaseEmbeddingClient):
         """Generate embeddings for multiple texts using sentence-transformers."""
         if not texts:
             return []
+        
+        _ = self.model  # ensures fallback flag/dims are set
+        if self._use_hash_fallback:
+            return [self._hash_embed(t, self.dimensions) for t in texts]
         
         # Handle empty texts
         non_empty_mask = [bool(t and t.strip()) for t in texts]
@@ -238,6 +297,7 @@ class EmbeddingService:
     
     def _create_client(self) -> BaseEmbeddingClient:
         """Create the appropriate embedding client based on config."""
+        strict_mode = os.getenv("GHOSTLINE_STRICT_MODE", "").strip().lower() in ("1", "true", "yes", "on")
         if self.config.provider == EmbeddingProvider.OPENAI:
             # Try OpenAI first
             try:
@@ -247,7 +307,11 @@ class EmbeddingService:
                 logger.info(f"Using OpenAI embeddings: {self.config.openai_model}")
                 return client
             except Exception as e:
+                if strict_mode:
+                    raise
                 logger.warning(f"OpenAI embeddings unavailable ({e}), falling back to local")
+                # IMPORTANT: reflect actual provider so audits don't lie.
+                self.config.provider = EmbeddingProvider.LOCAL
                 return self._create_local_client()
         else:
             return self._create_local_client()

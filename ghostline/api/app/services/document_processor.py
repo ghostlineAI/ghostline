@@ -7,10 +7,13 @@ Supports:
 - Plain text files
 - HTML files
 - Markdown files
+- Images (using VLM for understanding, OCR as fallback)
 
 Uses the 'unstructured' library for robust extraction.
+Uses Vision Language Models (Claude/GPT-4V) for image understanding.
 """
 
+import base64
 import os
 import tempfile
 from dataclasses import dataclass
@@ -29,6 +32,7 @@ class DocumentType(str, Enum):
     TXT = "txt"
     HTML = "html"
     MARKDOWN = "md"
+    IMAGE = "image"  # For OCR processing
     UNKNOWN = "unknown"
 
 
@@ -89,6 +93,15 @@ class DocumentProcessor:
             ".htm": DocumentType.HTML,
             ".md": DocumentType.MARKDOWN,
             ".markdown": DocumentType.MARKDOWN,
+            # Image types - will use OCR
+            ".png": DocumentType.IMAGE,
+            ".jpg": DocumentType.IMAGE,
+            ".jpeg": DocumentType.IMAGE,
+            ".gif": DocumentType.IMAGE,
+            ".webp": DocumentType.IMAGE,
+            ".tiff": DocumentType.IMAGE,
+            ".tif": DocumentType.IMAGE,
+            ".bmp": DocumentType.IMAGE,
         }
         return type_map.get(ext, DocumentType.UNKNOWN)
     
@@ -152,7 +165,30 @@ class DocumentProcessor:
         try:
             from unstructured.partition.auto import partition
             
-            elements = partition(filename=file_path)
+            # Enable OCR for images and PDFs with images
+            partition_kwargs = {"filename": file_path}
+            
+            if doc_type == DocumentType.IMAGE:
+                # For images, use VLM (Vision Language Model) for understanding
+                # This is much more powerful than OCR - can understand diagrams,
+                # handwritten notes, charts, screenshots, etc.
+                vlm_result = self._extract_with_vlm(file_path)
+                if vlm_result and vlm_result.word_count > 10:
+                    return vlm_result
+                
+                # Fallback to OCR if VLM fails or returns minimal content
+                try:
+                    from unstructured.partition.image import partition_image
+                    elements = partition_image(
+                        filename=file_path,
+                        strategy="ocr_only",  # Force OCR for images
+                    )
+                except ImportError:
+                    # Fallback to auto partition
+                    elements = partition(**partition_kwargs)
+            else:
+                # For other document types
+                elements = partition(**partition_kwargs)
             
             # Combine all text elements
             text_parts = []
@@ -206,6 +242,24 @@ class DocumentProcessor:
             import re
             content = re.sub(r'<[^>]+>', ' ', raw)
             content = re.sub(r'\s+', ' ', content)
+        elif doc_type == DocumentType.IMAGE:
+            # Try VLM first for better understanding
+            vlm_result = self._extract_with_vlm(file_path)
+            if vlm_result and vlm_result.word_count > 10:
+                return vlm_result
+            
+            # Fallback to pytesseract OCR
+            try:
+                import pytesseract
+                from PIL import Image
+                img = Image.open(file_path)
+                content = pytesseract.image_to_string(img)
+                if not content.strip():
+                    content = "[Image contains no extractable text]"
+            except ImportError:
+                content = "[OCR requires pytesseract and PIL libraries]"
+            except Exception as e:
+                content = f"[OCR failed: {str(e)}]"
         else:
             # For PDF/DOCX without unstructured, return empty with warning
             content = f"[Unable to extract from {doc_type.value} without unstructured library]"
@@ -220,6 +274,130 @@ class DocumentProcessor:
             metadata={"extraction_method": "basic"},
             chunks=[c.text for c in chunks],
         )
+    
+    def _extract_with_vlm(
+        self,
+        file_path: str,
+    ) -> Optional[ExtractedText]:
+        """
+        Extract content from an image using a Vision Language Model.
+        
+        This is much more powerful than OCR because it can:
+        - Understand and describe diagrams, charts, and infographics
+        - Read and interpret handwritten notes
+        - Extract text with proper context and structure
+        - Describe visual elements that pure text extraction would miss
+        - Understand relationships between visual elements
+        
+        Uses Claude's vision capabilities via LangChain for consistency
+        with our agent framework.
+        
+        Args:
+            file_path: Path to the image file
+            
+        Returns:
+            ExtractedText with VLM-generated content, or None if VLM fails
+        """
+        try:
+            # Check for API key
+            import os
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            if not api_key:
+                print("[DocumentProcessor] No ANTHROPIC_API_KEY found, skipping VLM extraction")
+                return None
+            
+            # Read and encode image
+            with open(file_path, "rb") as f:
+                image_data = f.read()
+            
+            # Determine media type
+            ext = Path(file_path).suffix.lower()
+            media_type_map = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+            }
+            media_type = media_type_map.get(ext, "image/png")
+            
+            # Encode to base64
+            image_b64 = base64.b64encode(image_data).decode("utf-8")
+            
+            # Use LangChain for consistency with our agent framework
+            from langchain_anthropic import ChatAnthropic
+            from langchain_core.messages import HumanMessage
+            
+            llm = ChatAnthropic(
+                model="claude-sonnet-4-20250514",
+                max_tokens=4096,
+                temperature=0.1,  # Low temperature for accurate extraction
+            )
+            
+            # Create vision message
+            message = HumanMessage(
+                content=[
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": image_b64,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": """Analyze this image thoroughly and extract ALL content. Your goal is to capture everything that could be useful for a book or document.
+
+Please provide:
+
+1. **EXTRACTED TEXT**: If there is any text in the image (typed, handwritten, or in graphics), transcribe it exactly as it appears. Preserve formatting, bullet points, numbered lists, etc.
+
+2. **VISUAL DESCRIPTION**: Describe any diagrams, charts, graphs, illustrations, or visual elements. Explain what they represent and any data or relationships they show.
+
+3. **CONTEXT & MEANING**: Explain what this image is about. What topic does it cover? What key insights or information does it convey?
+
+4. **STRUCTURE**: If this appears to be notes, a presentation slide, a diagram, or another structured format, describe that structure.
+
+5. **KEY TAKEAWAYS**: Summarize the main points or information contained in this image.
+
+Be thorough - this content will be used as source material for generating a book, so capture every relevant detail."""
+                    }
+                ]
+            )
+            
+            # Invoke the VLM
+            response = llm.invoke([message])
+            content = response.content
+            
+            if not content or len(content.strip()) < 20:
+                print("[DocumentProcessor] VLM returned minimal content")
+                return None
+            
+            # Chunk the extracted content
+            chunks = self._chunk_text(content)
+            
+            print(f"[DocumentProcessor] VLM extracted {len(content.split())} words from image")
+            
+            return ExtractedText(
+                content=content,
+                word_count=len(content.split()),
+                page_count=1,
+                document_type=DocumentType.IMAGE,
+                metadata={
+                    "extraction_method": "vlm",
+                    "model": "claude-sonnet-4-20250514",
+                    "source_type": "vision",
+                },
+                chunks=[c.text for c in chunks],
+            )
+            
+        except ImportError as e:
+            print(f"[DocumentProcessor] LangChain not available for VLM: {e}")
+            return None
+        except Exception as e:
+            print(f"[DocumentProcessor] VLM extraction failed: {e}")
+            return None
     
     def _chunk_text(
         self,
@@ -324,5 +502,6 @@ def get_document_processor(
             chunk_overlap=chunk_overlap,
         )
     return _document_processor
+
 
 

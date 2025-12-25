@@ -72,6 +72,10 @@ class Settings(BaseSettings):
         raw = os.getenv("BACKEND_CORS_ORIGINS")
         if not raw:
             return default_origins
+
+        raw = raw.strip()
+        if not raw:
+            return default_origins
             
         # Try to parse as JSON first
         try:
@@ -80,17 +84,33 @@ class Settings(BaseSettings):
                 return [str(origin).strip() for origin in parsed if origin]
         except (json.JSONDecodeError, ValueError):
             pass
+
+        # Handle common non-JSON bracket formats seen in .env files:
+        # - [http://localhost:3000]
+        # - ['http://localhost:3000', 'http://localhost:3001']
+        # - [ "http://localhost:3000" ]
+        if raw.startswith("[") and raw.endswith("]"):
+            inner = raw[1:-1].strip()
+            if not inner:
+                return default_origins
+            # Split on commas (if any) and strip whitespace/quotes
+            parts = [
+                part.strip().strip('"').strip("'")
+                for part in inner.split(",")
+                if part.strip()
+            ]
+            parts = [p for p in parts if p]
+            if parts:
+                return parts
             
         # Fall back to comma-separated
         if "," in raw:
             return [origin.strip() for origin in raw.split(",") if origin.strip()]
             
         # Single origin
-        raw = raw.strip()
-        if raw:
-            return [raw]
+        return [raw]
             
-        return default_origins
+        # (unreachable)
 
     # AI Models (for future use)
     CLAUDE_MODEL: str = "claude-3-haiku-20240307"

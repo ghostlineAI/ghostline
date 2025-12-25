@@ -64,7 +64,8 @@ class VoiceEditorAgent(BaseAgent[VoiceState]):
             role=AgentRole.EDITOR,
             model="claude-sonnet-4-20250514",
             provider=LLMProvider.ANTHROPIC,
-            temperature=0.5,  # Lower for consistent editing
+            # Lower temperature for conservative edits that preserve citations.
+            temperature=0.2,
             max_tokens=8192,
         )
     
@@ -83,6 +84,14 @@ When analyzing voice, consider:
 - Use of metaphors and figurative language
 - Paragraph structure and pacing
 - Common phrases or linguistic patterns
+
+CRITICAL GROUNDING / CITATION SAFETY:
+- Do NOT remove, reorder, or modify any citation markers of the form:
+  [citation: filename.ext - "quote from source"]
+- Do NOT change anything inside the citation marker (filename or quoted text).
+- Do NOT change the quoted source text that appears in the prose (inside quotation marks) when it is tied to a citation.
+- Do NOT add new facts, new scenes, or new anecdotes. Only adjust wording for voice while preserving meaning.
+- Do NOT create substantive paragraphs without citations. If you must change structure, ensure citations remain attached.
 
 Your edits should be invisible - the result should read as if the original author wrote it."""
     
@@ -215,6 +224,12 @@ Be precise about specific words, phrases, or patterns that don't match."""
         prompt = f"""Rewrite this content to match the target voice while preserving all meaning.
 
 {voice_ref}
+
+HARD CONSTRAINTS:
+- Preserve ALL [citation: ...] markers exactly; do not alter the filename or the quote inside them.
+- Do NOT remove citations. Do NOT add uncited substantive paragraphs.
+- Do NOT change quoted source text in the prose when it corresponds to a citation.
+- Do NOT introduce new facts or narratives. Only adjust wording of the non-quoted commentary for voice.
 
 CONTENT TO REWRITE:
 {state.content}

@@ -65,6 +65,14 @@ compelling, well-structured book outlines that:
 3. Balance depth and accessibility for the target audience
 4. Create chapter titles that intrigue and inform
 
+CRITICAL GROUNDING RULES:
+- You MUST base the outline ONLY on the provided source material summaries.
+- Do NOT introduce new named techniques, protocols, acronyms, or frameworks that are not explicitly present in the source materials.
+  Bad (invented): "BRIDGE protocol", "Glance and Ground technique", "80% rule", "XYZ framework".
+  Good: Use the exact phrasing from the notes, or describe an idea plainly without naming it.
+- Do NOT add external therapy modalities (CBT/DBT/ACT/etc.) unless those words appear in the sources.
+- Respect the requested chapter count exactly: output EXACTLY the requested number of chapters.
+
 When creating outlines, always output valid JSON with this structure:
 {
     "title": "Book Title",
@@ -83,7 +91,7 @@ When creating outlines, always output valid JSON with this structure:
     "target_audience": "Description of ideal reader"
 }
 
-Be creative with titles and summaries. Make each chapter compelling and distinct."""
+Make each chapter compelling and distinct, but do not invent content beyond the sources."""
     
     def process(self, state: OutlineState) -> AgentOutput:
         """Generate or refine a book outline."""
@@ -110,7 +118,12 @@ Target: {state.target_chapters} chapters, approximately {state.target_words} tot
 SOURCE MATERIAL SUMMARIES:
 {source_context}
 
-Create a compelling, well-structured outline. Output only valid JSON."""
+Hard requirements:
+- Output EXACTLY {state.target_chapters} chapters.
+- Do NOT invent named techniques/protocols/frameworks/acronyms.
+- Do NOT add external information not in the summaries.
+
+Create a compelling, well-structured outline grounded in the summaries. Output only valid JSON."""
 
         output = self.invoke(prompt)
         
