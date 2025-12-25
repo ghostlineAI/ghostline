@@ -103,20 +103,23 @@ FIDELITY TO THE AUTHOR'S NOTES:
 - If you need a vignette, it must be explicitly grounded as an example drawn from the notes.
 - It's OK to add brief connective tissue, but it must remain non-specific and non-factual.
 - Every substantive paragraph (≥20 words) MUST include at least one [citation: ...] marker. If you cannot cite it, delete it.
-- CITED QUOTES MUST APPEAR IN THE PROSE:
-  For every citation you add, you MUST include the quoted text in the actual paragraph (verbatim) in quotation marks,
-  ideally immediately before the citation marker. This prevents “hand-wavy” citations.
 
-  Example:
-  ... "Taking a step back isn't a delay...it's an integral piece of allowing myself to be most productive for work"
-  [citation: mentalhealth1.pdf - "Taking a step back isn't a delay...it's an integral piece of allowing myself to be most productive for work"]
+INTEGRATING SOURCE CONTENT (IMPORTANT - NO DOUBLE QUOTING):
+- Include verbatim text from sources NATURALLY in prose - do NOT wrap it in quotation marks unless:
+  a) The source text is itself a quote from someone else, OR
+  b) You're emphasizing a specific phrase (use sparingly)
+- The citation marker tracks what was quoted - the quote in the marker should match what's in prose
+- WRONG: "Taking a step back isn't a delay" [citation: file.pdf - "Taking a step back isn't a delay"]
+- RIGHT: Taking a step back isn't a delay, as I noted in my journal, and this became a cornerstone of my approach [citation: file.pdf - "Taking a step back isn't a delay"]
+- The verbatim text flows naturally into the sentence without extra quotation marks
 
 OUTPUT FORMAT CONSTRAINT (VERY IMPORTANT):
-- Each substantive paragraph should follow this pattern:
-  1) A direct quote in quotation marks (8-25 words) copied from the QUOTE BANK / sources
-  2) The matching [citation: ...] marker (same quote)
-  3) 1–2 short sentences of commentary that stay close to the quote (no new facts, no new scenes)
-- Keep paragraphs tight (prefer 60–110 words total). If you need more, add another quote-paragraph instead of expanding.
+- Each substantive paragraph should:
+  1) Integrate 1-2 verbatim phrases (8-25 words) from sources naturally into prose
+  2) Include a [citation: ...] marker after each integrated phrase
+  3) Add 1-2 short sentences of commentary that stay close to the content (no new facts)
+- Do NOT wrap the verbatim text in quotation marks - let it flow naturally
+- Keep paragraphs tight (prefer 60-110 words total). If you need more, add another paragraph instead of expanding.
 
 STRUCTURAL VARIETY (CRITICAL):
 Avoid making every chapter follow the same structural pattern. Vary your approach:
@@ -134,18 +137,22 @@ Avoid making every chapter follow the same structural pattern. Vary your approac
 
 GROUNDING RULES:
 - You MUST base your content on the provided source materials
-- When making factual claims, use the STANDARDIZED CITATION FORMAT:
-  [citation: filename.ext - "exact or paraphrased quote"]
+- When including content from sources, use the STANDARDIZED CITATION FORMAT:
+  [citation: filename.ext - "verbatim text from source"]
   
-  Examples:
-  - [citation: mentalhealth1.pdf - "Taking a step back isn't a delay"]
-  - [citation: notes.txt - "meditation helps me process difficult emotions"]
+  The quote in the citation MUST match verbatim text that appears in the prose (without extra quotation marks).
+  
+  Example prose:
+  "Sometimes taking a step back isn't a delay, as I've learned, it's an integral piece of allowing myself 
+   to be most productive for work [citation: mentalhealth1.pdf - "taking a step back isn't a delay"]."
+  
+  Notice: the phrase "taking a step back isn't a delay" appears naturally in prose WITHOUT quotation marks,
+  and the same phrase appears in the citation marker.
   
 - Do NOT make up facts, statistics, or claims not supported by sources
 - If the sources don't cover something in the outline, note it as needing additional research
-- You may synthesize and rephrase, but the core information must come from sources
-- The quote inside the citation MUST be copied VERBATIM from the provided source blocks above (no paraphrasing inside the quoted text).
-  Keep quotes short (8-25 words) so they can be verified reliably.
+- You may synthesize and rephrase commentary, but verbatim quotes must be exact
+- Keep cited phrases short (8-25 words) so they can be verified reliably
 
 Write as if you ARE the author. Never break voice. 
 Make every paragraph serve the chapter's purpose while engaging the reader.

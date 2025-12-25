@@ -24,6 +24,7 @@ from app.services.book_export import (
     BookMetadata,
     Chapter,
     ExportFormat,
+    CitationMetadata,
 )
 
 router = APIRouter()
@@ -61,8 +62,15 @@ MIME_TYPES = {
 }
 
 
-def _get_chapters_from_task(task: GenerationTask) -> list[Chapter]:
-    """Extract chapters from a completed generation task."""
+def _get_chapters_from_task(task: GenerationTask, use_clean_content: bool = True) -> list[Chapter]:
+    """
+    Extract chapters from a completed generation task.
+    
+    Args:
+        task: The generation task
+        use_clean_content: If True, use content_clean (no citation markers).
+                          If False, use raw content with markers.
+    """
     output_data = task.output_data or {}
     workflow_state = output_data.get("workflow_state", {})
     chapters_data = workflow_state.get("chapters", [])
@@ -73,15 +81,39 @@ def _get_chapters_from_task(task: GenerationTask) -> list[Chapter]:
             detail="No chapters found in task output. Is the generation complete?"
         )
     
-    return [
-        Chapter(
-            number=ch.get("number", i + 1),
-            title=ch.get("title", f"Chapter {i + 1}"),
-            content=ch.get("content", ""),
-            word_count=ch.get("word_count", 0),
+    chapters = []
+    for i, ch in enumerate(chapters_data):
+        # Prefer content_clean (no inline citation markers) if available
+        if use_clean_content and ch.get("content_clean"):
+            content = ch.get("content_clean")
+        else:
+            content = ch.get("content", "")
+        
+        # Extract citation metadata for references section
+        citations = []
+        for cit in ch.get("citations", []):
+            citations.append(
+                CitationMetadata(
+                    filename=cit.get("filename", "Unknown"),
+                    quote=cit.get("quote", ""),
+                    quote_start=cit.get("quote_start"),
+                    quote_end=cit.get("quote_end"),
+                    source_material_id=cit.get("source_material_id"),
+                    verified=cit.get("verified", False),
+                )
+            )
+        
+        chapters.append(
+            Chapter(
+                number=ch.get("number", i + 1),
+                title=ch.get("title", f"Chapter {i + 1}"),
+                content=content,
+                word_count=ch.get("word_count", 0),
+                citations=citations,
+            )
         )
-        for i, ch in enumerate(chapters_data)
-    ]
+    
+    return chapters
 
 
 def _get_metadata_from_project(

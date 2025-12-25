@@ -51,16 +51,30 @@ class BookMetadata:
 
 
 @dataclass
+class CitationMetadata:
+    """Metadata for a citation in the text."""
+    filename: str  # Source file name
+    quote: str  # The verbatim quoted text
+    quote_start: int = None  # Start position in clean text
+    quote_end: int = None  # End position in clean text
+    source_material_id: str = None  # DB reference for future linking
+    verified: bool = False  # Whether quote was verified against source
+
+
+@dataclass
 class Chapter:
     """A book chapter."""
     number: int
     title: str
-    content: str
+    content: str  # Clean content without citation markers
     word_count: int = 0
+    citations: list[CitationMetadata] = None  # Citation metadata for references section
     
     def __post_init__(self):
         if not self.word_count:
             self.word_count = len(self.content.split())
+        if self.citations is None:
+            self.citations = []
 
 
 class BookExportService:
@@ -841,7 +855,7 @@ class BookExportService:
     # =========================================================================
     
     def _export_txt(self, chapters: list[Chapter], metadata: BookMetadata) -> str:
-        """Export to plain text format."""
+        """Export to plain text format with references section."""
         lines = []
         
         # Title
@@ -870,30 +884,58 @@ class BookExportService:
         lines.append("=" * 60)
         lines.append("")
         
-        # Chapters
+        # Chapters - use clean content (no inline citation markers)
+        all_references = []  # Collect all references for end-of-book section
+        
         for chapter in chapters:
             lines.append("-" * 60)
             lines.append(f"CHAPTER {chapter.number}: {chapter.title.upper()}")
             lines.append("-" * 60)
             lines.append("")
             
-            # Clean up markdown
-            chapter_body, notes = self._extract_citations_as_footnotes(
-                chapter.content, marker_style="brackets"
-            )
-            content = chapter_body
+            # The content should already be clean (no citation markers)
+            # Just clean up markdown formatting
+            content = chapter.content
             content = re.sub(r'\*\*(.+?)\*\*', r'\1', content)  # Remove bold
             content = re.sub(r'\*(.+?)\*', r'\1', content)  # Remove italic
             content = re.sub(r'^## ', '', content, flags=re.MULTILINE)  # Remove heading markers
+            # Remove any remaining citation markers (in case content wasn't pre-cleaned)
+            content = re.sub(r'\[citation:\s*[^\]]+\]', '', content, flags=re.IGNORECASE)
+            content = re.sub(r'  +', ' ', content)  # Clean double spaces
             
-            lines.append(content)
-            if notes:
-                lines.append("")
-                lines.append("NOTES")
-                lines.append("-" * 5)
-                for i, note in enumerate(notes, 1):
-                    lines.append(f"[{i}] {note}")
+            lines.append(content.strip())
+            
+            # Collect citations for this chapter into references
+            if chapter.citations:
+                for cit in chapter.citations:
+                    all_references.append({
+                        "chapter": chapter.number,
+                        "filename": cit.filename,
+                        "quote": cit.quote,
+                    })
+            
             lines.append("")
+            lines.append("")
+        
+        # Add References section at the end of the book (not inline or per-chapter)
+        if all_references:
+            lines.append("=" * 60)
+            lines.append("REFERENCES")
+            lines.append("=" * 60)
+            lines.append("")
+            
+            current_chapter = None
+            for ref in all_references:
+                if ref["chapter"] != current_chapter:
+                    if current_chapter is not None:
+                        lines.append("")
+                    lines.append(f"Chapter {ref['chapter']}:")
+                    current_chapter = ref["chapter"]
+                
+                # Show source file and the quote (if not too long)
+                quote_preview = ref["quote"][:100] + "..." if len(ref["quote"]) > 100 else ref["quote"]
+                lines.append(f"  - {ref['filename']}: \"{quote_preview}\"")
+            
             lines.append("")
         
         return '\n'.join(lines)
