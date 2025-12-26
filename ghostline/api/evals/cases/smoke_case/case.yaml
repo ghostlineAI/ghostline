@@ -1,0 +1,10 @@
+case_id: smoke_case
+
+sources:
+  - path: sources/source.txt
+    filename: source.txt
+
+generated_texts:
+  - path: generated.md
+
+

@@ -7,6 +7,14 @@ from sqlalchemy.pool import StaticPool
 import os
 import uuid
 
+# Ensure tests run with real auth flow (no dev-mode bypass), regardless of local `.env`.
+os.environ.setdefault("AUTH_DISABLED", "false")
+os.environ.setdefault("ENVIRONMENT", "test")
+# Ensure CORS configuration is predictable under tests.
+os.environ["BACKEND_CORS_ORIGINS"] = (
+    '["http://localhost:3000","https://dev.ghostline.ai","https://d2thhts2eu7se8.cloudfront.net"]'
+)
+
 from app.main import app
 from app.db.base import Base
 from app.api.deps import get_db
@@ -148,6 +156,21 @@ def auth_headers(client: TestClient, test_user: User):
     token = response.json()["access_token"]
     
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(scope="function")
+def test_user_token(client: TestClient, test_user: User) -> str:
+    """Return a raw JWT token for legacy tests that expect the token string."""
+    login_data = {"email": test_user.email, "password": "testpassword"}
+    response = client.post("/api/v1/auth/login", json=login_data)
+    assert response.status_code == 200
+    return response.json()["access_token"]
+
+
+@pytest.fixture(scope="function")
+def db_session(db: Session) -> Session:
+    """Legacy alias for `db`."""
+    return db
 
 
 @pytest.fixture(scope="function")

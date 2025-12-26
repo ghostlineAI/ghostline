@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ProjectBase(BaseModel):
+    title: str = Field(..., min_length=1, max_length=500)
+    description: str | None = Field(None, max_length=1000)
+
+
+class ProjectCreate(ProjectBase):
+    genre: str = Field(
+        ...,
+        pattern="^(fiction|non_fiction|memoir|business|self_help|academic|technical|other)$",
+    )
+
+
+class ProjectUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=500)
+    description: str | None = Field(None, max_length=1000)
+    status: str | None = Field(
+        None, pattern="^(draft|processing|ready|published|archived)$"
+    )
+
+
+class ProjectResponse(ProjectBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    chapter_count: int = 0
+    word_count: int = 0
+    genre: str | None = None
+
+

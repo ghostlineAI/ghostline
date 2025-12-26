@@ -10,6 +10,7 @@ from app.models.chapter import Chapter
 from app.models.project import BookGenre, Project, ProjectStatus
 from app.models.source_material import SourceMaterial
 from app.models.user import User
+from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 
 router = APIRouter()
 
@@ -42,7 +43,8 @@ def project_to_response(project: Project, db: Session) -> dict:
     }
 
 
-@router.get("/")
+@router.get("", response_model=list[ProjectResponse])
+@router.get("/", response_model=list[ProjectResponse], include_in_schema=False)
 def list_projects(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
@@ -61,15 +63,16 @@ def list_projects(
     return [project_to_response(project, db) for project in projects]
 
 
-@router.post("/")
+@router.post("", response_model=ProjectResponse)
+@router.post("/", response_model=ProjectResponse, include_in_schema=False)
 def create_project(
-    project_data: dict,
+    project_data: ProjectCreate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
     """Create a new project."""
     # Map genre string to enum
-    genre_str = project_data.get('genre', 'other')
+    genre_str = project_data.genre
     genre_map = {
         'fiction': BookGenre.FICTION,
         'non_fiction': BookGenre.NON_FICTION,
@@ -84,8 +87,8 @@ def create_project(
     genre_enum = genre_map.get(genre_str.lower(), BookGenre.OTHER)
     
     db_project = Project(
-        title=project_data.get('title', 'Untitled Project'),
-        description=project_data.get('description'),
+        title=project_data.title,
+        description=project_data.description,
         owner_id=current_user.id,
         status=ProjectStatus.DRAFT,
         genre=genre_enum,
@@ -97,7 +100,7 @@ def create_project(
     return project_to_response(db_project, db)
 
 
-@router.get("/{project_id}")
+@router.get("/{project_id}", response_model=ProjectResponse)
 def get_project(
     project_id: str,
     db: Session = Depends(deps.get_db),
@@ -118,10 +121,10 @@ def get_project(
     return project_to_response(project, db)
 
 
-@router.patch("/{project_id}")
+@router.patch("/{project_id}", response_model=ProjectResponse)
 def update_project(
     project_id: str,
-    project_update: dict,
+    project_update: ProjectUpdate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
@@ -137,13 +140,15 @@ def update_project(
             status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
         )
 
+    update = project_update.model_dump(exclude_unset=True)
+
     # Update fields
-    if 'title' in project_update:
-        project.title = project_update['title']
-    if 'description' in project_update:
-        project.description = project_update['description']
-    if 'status' in project_update:
-        project.status = ProjectStatus(project_update['status'])
+    if 'title' in update:
+        project.title = update['title']
+    if 'description' in update:
+        project.description = update['description']
+    if 'status' in update:
+        project.status = ProjectStatus(update['status'])
 
     db.commit()
     db.refresh(project)

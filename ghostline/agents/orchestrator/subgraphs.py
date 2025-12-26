@@ -476,20 +476,47 @@ class ChapterSubgraph:
         if len(re.findall(r"\\b(toolkit|framework|arsenal)\\b", content, flags=re.IGNORECASE)) >= 6:
             issues.append("Too much 'framework/toolkit/arsenal' meta-language. Reduce and write more directly.")
 
-        # Grounding: paragraphs with no citations tend to be hallucination-prone
-        paras = [p.strip() for p in re.split(r"\n\s*\n+", content) if p.strip()]
-        uncited_paras = []
-        for p in paras:
-            # Ignore very short transition paragraphs
-            if len(p.split()) < 10:
-                continue
-            if "[citation:" not in p.lower():
-                uncited_paras.append(p[:120])
-        if uncited_paras:
+        # AI tell: em/en-dash overuse (often shows up as "long dashes everywhere")
+        dash_count = content.count("—") + content.count("–")
+        dash_count += len(re.findall(r"(?<!-)--(?!-)", content))
+        word_total = len(content.split()) or 1
+        dashes_per_1k = (dash_count / word_total) * 1000.0
+        if dashes_per_1k > 2.0:
             issues.append(
-                "Found paragraph(s) with no citations. Any substantive paragraph must include at least one [citation: ...] marker. "
-                f"Example (first): {uncited_paras[0]}"
+                f"Too many em/en-dashes (—/–/--): {dash_count} across ~{word_total} words "
+                f"({dashes_per_1k:.1f} per 1k). Replace with commas/periods to sound more human."
             )
+
+        paras = [p.strip() for p in re.split(r"\n\s*\n+", content) if p.strip()]
+
+        # Claim-level grounding: allow uncited connective prose, but flag "factual-looking"
+        # sentences without citations (numbers, clinical/statistical language, etc).
+        if "[citation:" not in content.lower():
+            issues.append(
+                "No citations found. Add [citation: ...] markers for factual claims and any verbatim phrases taken from sources."
+            )
+        else:
+            sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", content) if s.strip()]
+            uncited_factual: list[str] = []
+            factual_kw = re.compile(
+                r"\b(percent|%|diagnos|clinical|medication|therapy|symptom|study|studies|research|statistic|prevalence|rate)\b",
+                re.IGNORECASE,
+            )
+            for s in sentences:
+                if "[citation:" in s.lower():
+                    continue
+                if re.search(r"\d", s) is not None:
+                    uncited_factual.append(s[:160])
+                    continue
+                if factual_kw.search(s) is not None:
+                    uncited_factual.append(s[:160])
+                    continue
+            if uncited_factual:
+                issues.append(
+                    "Found potentially factual sentence(s) without citations (claim-level grounding). "
+                    "Add a [citation: ...] marker to the sentence or rewrite as non-factual reflection. "
+                    f"Example (first): {uncited_factual[0]}"
+                )
 
         # Grounding: cited quotes must appear in the prose (verbatim).
         # For each substantive paragraph, require at least one citation whose QUOTE appears
@@ -518,43 +545,15 @@ class ChapterSubgraph:
             if not quote_found:
                 issues.append(
                     "Citation quote not present in paragraph prose. "
-                    "Include the cited quote verbatim in quotation marks in the paragraph (not just inside the citation marker). "
+                    "Include the cited quote verbatim in the paragraph prose (outside the citation marker). "
+                    "Do NOT add quotation marks unless the source text is itself a quote. "
                     f"Example paragraph start: {p[:140]}"
                 )
                 break
 
-        # Grounding: prevent "hand-wavy" citations by requiring a minimum proportion of
-        # quoted source text per substantive paragraph.
-        for p in paras:
-            if len(p.split()) < 20:
-                continue
-            cites = list(citation_pat.finditer(p))
-            if not cites:
-                continue
-
-            prose = citation_pat.sub("", p).strip()
-            prose_words = len(prose.split())
-            if prose_words <= 0:
-                continue
-
-            quote_words = 0
-            for m in cites:
-                q = (m.group(2) or "").strip()
-                if not q:
-                    continue
-                # Count only quotes that are actually present in the prose
-                if q.lower() in prose.lower():
-                    quote_words += len(q.split())
-
-            # Require at least 15% of the paragraph to be direct quoted text.
-            if quote_words / prose_words < 0.15:
-                issues.append(
-                    "Paragraph contains too little quoted source text relative to commentary. "
-                    "To avoid hallucination/embellishment, increase direct quoting or shorten commentary. "
-                    f"(quote_words={quote_words}, para_words={prose_words}). "
-                    f"Example paragraph start: {p[:140]}"
-                )
-                break
+        # NOTE: we intentionally do NOT enforce a minimum quote density in prose.
+        # Quote-ratio gates caused templated, choppy output. Grounding is enforced at the
+        # claim level via citation verification + uncited-factual-sentence heuristics.
 
         # Grounding: invented autobiographical scenes (first-person past-tense) without citations
         # Example to catch: "I was at my desk..." / "That Tuesday morning..."
@@ -578,14 +577,122 @@ class ChapterSubgraph:
 
         return issues
 
+    def _format_fact_feedback(self, structured: dict) -> str:
+        """Build a compact, actionable fact-check feedback string from FactChecker JSON."""
+        if not structured:
+            return ""
+
+        summary = (structured.get("summary") or "").strip()
+        findings = list(structured.get("findings") or [])
+        unsupported = list(structured.get("unsupported_claims") or [])
+        low_conf = list(structured.get("low_confidence_citations") or [])
+
+        severity_rank = {"high": 3, "medium": 2, "low": 1}
+        findings_sorted = sorted(
+            findings,
+            key=lambda f: severity_rank.get(str(f.get("severity") or "").lower(), 0),
+            reverse=True,
+        )
+
+        parts: list[str] = []
+        if summary:
+            parts.append(f"Summary: {summary}")
+
+        if findings_sorted:
+            lines: list[str] = []
+            for f in findings_sorted[:3]:
+                typ = str(f.get("type") or "issue")
+                sev = str(f.get("severity") or "").lower() or "unspecified"
+                loc = str(f.get("location") or "").strip()
+                issue = str(f.get("issue") or "").strip()
+                suggestion = str(f.get("suggestion") or "").strip()
+
+                line = f"- ({sev}) {typ}: {issue}" if issue else f"- ({sev}) {typ}"
+                if loc:
+                    line += f" @ {loc}"
+                if suggestion:
+                    line += f" | Fix: {suggestion}"
+                lines.append(line)
+            parts.append("Top issues:\n" + "\n".join(lines))
+
+        if unsupported:
+            parts.append("Unsupported claims:\n" + "\n".join(f"- {c}" for c in unsupported[:5]))
+
+        if low_conf:
+            parts.append("Low-confidence citations:\n" + "\n".join(f"- {c}" for c in low_conf[:5]))
+
+        return "\n\n".join(p for p in parts if p).strip()
+
+    def _format_cohesion_feedback(self, structured: dict) -> str:
+        """Build a compact, actionable cohesion feedback string from CohesionAnalyst JSON."""
+        if not structured:
+            return ""
+
+        summary = (structured.get("summary") or "").strip()
+        issues = list(structured.get("issues") or [])
+
+        severity_rank = {"high": 3, "medium": 2, "low": 1}
+        issues_sorted = sorted(
+            issues,
+            key=lambda i: severity_rank.get(str(i.get("severity") or "").lower(), 0),
+            reverse=True,
+        )
+
+        parts: list[str] = []
+        if summary:
+            parts.append(f"Summary: {summary}")
+
+        if issues_sorted:
+            lines: list[str] = []
+            for i in issues_sorted[:3]:
+                typ = str(i.get("type") or "issue")
+                sev = str(i.get("severity") or "").lower() or "unspecified"
+                loc = str(i.get("location") or "").strip()
+                desc = str(i.get("description") or "").strip()
+                suggestion = str(i.get("suggestion") or "").strip()
+
+                line = f"- ({sev}) {typ}: {desc}" if desc else f"- ({sev}) {typ}"
+                if loc:
+                    line += f" @ {loc}"
+                if suggestion:
+                    line += f" | Fix: {suggestion}"
+                lines.append(line)
+            parts.append("Top issues:\n" + "\n".join(lines))
+
+        return "\n\n".join(p for p in parts if p).strip()
+
     def _sanitize_grounding(self, content: str) -> str:
         """
-        Deterministically sanitize content to reduce hallucination risk:
-        - Drop substantive paragraphs (>=20 words) that have no inline [citation: ...] markers.
-        - If a paragraph has citations but the cited quote is not present in prose, inject the first cited quote.
-        - If a paragraph has too little quoted text relative to commentary, trim commentary after the first citation.
+        Grounding sanitizer.
 
-        This is a product-level safety net so we don't ship uncited / overly embellished prose.
+        IMPORTANT: This must be **non-destructive by default**. Older versions rewrote prose
+        (dropping uncited paragraphs, injecting quotes, trimming/reformatting paragraphs,
+        and removing first-person sentences). That harmed voice and flow and masked quality
+        issues we actually want to surface via quality gates.
+
+        Set `GHOSTLINE_DESTRUCTIVE_SANITIZER=1` to temporarily re-enable the legacy behavior
+        for debugging/rollback.
+        """
+        if not content or not content.strip():
+            return content
+
+        if os.getenv("GHOSTLINE_DESTRUCTIVE_SANITIZER", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            return self._sanitize_grounding_destructive(content)
+
+        # Non-destructive path: preserve output exactly (minus outer whitespace normalization).
+        return content.strip()
+
+    def _sanitize_grounding_destructive(self, content: str) -> str:
+        """
+        Legacy destructive sanitizer (kept behind `GHOSTLINE_DESTRUCTIVE_SANITIZER`).
+
+        NOTE: This intentionally preserves the prior behavior for rollback, but should not be
+        enabled in normal runs.
         """
         import re
 
@@ -1159,12 +1266,13 @@ The content would be expanded based on the source materials and voice profile.
             )
 
             if output.is_success() and output.structured_data:
-                state["fact_score"] = output.structured_data.get("accuracy_score", 0.95)
-                state["fact_feedback"] = output.structured_data.get("issues", "")
+                structured = output.structured_data
+                state["fact_score"] = float(structured.get("accuracy_score") or 0.0)
+                state["fact_feedback"] = self._format_fact_feedback(structured)
                 state["tokens_used"] = state.get("tokens_used", 0) + output.tokens_used
                 state["cost_incurred"] = state.get("cost_incurred", 0.0) + output.estimated_cost
 
-                claim_mappings = output.structured_data.get("claim_mappings", []) or []
+                claim_mappings = structured.get("claim_mappings", []) or []
 
                 # Verify citations against actual source content
                 if claim_mappings and source_chunks_with_citations:
@@ -1249,8 +1357,9 @@ The content would be expanded based on the source materials and voice profile.
             output = self.cohesion_analyst.process(cohesion_state)
             
             if output.is_success() and output.structured_data:
-                state["cohesion_score"] = output.structured_data.get("cohesion_score", 0.0) or 0.0
-                state["cohesion_feedback"] = output.structured_data.get("feedback", "") or ""
+                structured = output.structured_data
+                state["cohesion_score"] = float(structured.get("cohesion_score") or 0.0)
+                state["cohesion_feedback"] = self._format_cohesion_feedback(structured)
                 state["tokens_used"] = state.get("tokens_used", 0) + output.tokens_used
                 state["cost_incurred"] = state.get("cost_incurred", 0.0) + output.estimated_cost
             else:
@@ -1340,13 +1449,15 @@ HARD CONSTRAINTS (must follow):
 - Do NOT invent scenes, anecdotes, or autobiographical moments. If it's first-person, it must be grounded in the sources.
 - Minimize headings: at most 3 section headings using '##' for the entire chapter. Prefer longer paragraphs.
 - Do NOT introduce named frameworks or acronym systems (e.g., "FOUNDATION framework"). Write naturally.
+- Avoid em-dashes (—/–) and double-hyphens (--). Prefer commas or periods.
 - Every factual claim must be supported by the SOURCES below and include a citation in this exact format:
   [citation: filename.ext - "exact quote from source"]
 - If a claim cannot be supported, remove it or explicitly mark it as needing research (do not guess).
-- Every substantive paragraph (≥20 words) MUST contain at least one [citation: ...] marker. If you cannot cite it, delete it.
+- Citations are claim-level: add [citation: ...] markers to the sentences that make factual claims or directly use source language.
+  Pure connective/reflection sentences may be uncited, but must not introduce new facts.
 - After you finish, do a quick self-check: scan every paragraph and confirm it has a citation if it contains substantive content.
-- CITED QUOTES MUST APPEAR IN THE PROSE: For every [citation: ... - "QUOTE"] you add, you MUST include that exact QUOTE text
-  verbatim in the paragraph in quotation marks (ideally immediately before the citation marker).
+- CITED QUOTE TEXT MUST APPEAR IN THE PROSE: For every [citation: ... - "QUOTE"] you add, you MUST include that exact QUOTE text
+  verbatim somewhere in the paragraph prose (outside the citation marker). Do NOT add quotation marks unless the source is quoting someone.
 
 VOICE GUIDANCE (match this):
 {voice_guidance or "(none provided)"}

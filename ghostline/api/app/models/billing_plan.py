@@ -5,10 +5,10 @@ Billing plan model for subscription tiers.
 import uuid
 
 from sqlalchemy import Boolean, Column, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+from app.db.types import GUID
 
 
 class BillingPlan(Base):
@@ -16,7 +16,7 @@ class BillingPlan(Base):
 
     __tablename__ = "billing_plans"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     name = Column(String(50), nullable=False, unique=True)  # Basic, Premium, Pro
     display_name = Column(String(100), nullable=False)
     description = Column(Text)

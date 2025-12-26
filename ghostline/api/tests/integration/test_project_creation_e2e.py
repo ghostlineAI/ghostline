@@ -2,10 +2,19 @@
 Real E2E test for project creation - NO MOCKS
 This test hits the actual dev environment
 """
+import os
+
 import pytest
 import requests
 import uuid
 import time
+
+
+RUN_LIVE = os.getenv("RUN_LIVE_DEV_E2E", "").lower() in ("1", "true", "yes")
+pytestmark = pytest.mark.skipif(
+    not RUN_LIVE,
+    reason="Requires live dev environment (set RUN_LIVE_DEV_E2E=1 to enable).",
+)
 
 
 class TestProjectCreationE2E:

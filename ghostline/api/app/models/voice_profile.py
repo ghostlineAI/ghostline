@@ -11,11 +11,12 @@ import uuid
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+from app.db.types import GUID
 
 
 class VoiceProfile(Base):
@@ -23,7 +24,7 @@ class VoiceProfile(Base):
 
     __tablename__ = "voice_profiles"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     
     # From migration: name and description
     name = Column(String(255), nullable=True)  # e.g., "Author's Primary Voice"
@@ -57,12 +58,15 @@ class VoiceProfile(Base):
     avg_paragraph_length = Column(Float, nullable=True)  # Sentences per paragraph
 
     # Common phrases and patterns (for pattern matching)
-    common_phrases = Column(ARRAY(String), nullable=True)
-    sentence_starters = Column(ARRAY(String), nullable=True)
-    transition_words = Column(ARRAY(String), nullable=True)
+    # NOTE: Tests run against SQLite by default. Use JSON fallback so metadata.create_all works
+    # without Postgres ARRAY support.
+    common_phrases = Column(ARRAY(String).with_variant(JSON(), "sqlite"), nullable=True)
+    sentence_starters = Column(ARRAY(String).with_variant(JSON(), "sqlite"), nullable=True)
+    transition_words = Column(ARRAY(String).with_variant(JSON(), "sqlite"), nullable=True)
 
     # Voice embedding (OpenAI text-embedding-3-small, 1536 dimensions)
-    voice_embedding = Column(Vector(1536), nullable=True)
+    # NOTE: SQLite fallback so tests can run without pgvector.
+    voice_embedding = Column(Vector(1536).with_variant(JSON(), "sqlite"), nullable=True)
 
     # Stylistic elements (detailed patterns as JSON)
     stylistic_elements = Column(JSON, default=dict)
@@ -86,7 +90,7 @@ class VoiceProfile(Base):
 
     # Project (one-to-one)
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False, unique=True
+        GUID(), ForeignKey("projects.id"), nullable=False, unique=True
     )
 
     # Timestamps

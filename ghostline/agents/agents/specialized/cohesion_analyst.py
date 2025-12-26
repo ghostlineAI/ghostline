@@ -9,7 +9,7 @@ import json
 import re
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from agents.base.agent import (
     AgentConfig,
@@ -18,6 +18,7 @@ from agents.base.agent import (
     BaseAgent,
     LLMProvider,
 )
+from agents.specialized.schemas import CohesionResultModel
 
 
 class CohesionState(BaseModel):
@@ -252,13 +253,20 @@ For each issue, provide a specific fix:
             content = re.sub(r'\n?```$', '', content)
         
         try:
-            return json.loads(content)
+            raw = json.loads(content)
         except json.JSONDecodeError:
             match = re.search(r'\{[\s\S]*\}', content)
             if match:
                 try:
-                    return json.loads(match.group())
+                    raw = json.loads(match.group())
                 except json.JSONDecodeError:
                     pass
-            return {"cohesion_score": 0.5, "issues": [], "summary": "Could not parse results"}
+            raw = {"cohesion_score": 0.5, "issues": [], "summary": "Could not parse results"}
+
+        # Validate / normalize against schema (best-effort)
+        try:
+            model = CohesionResultModel.model_validate(raw)
+            return model.model_dump()
+        except ValidationError:
+            return raw if isinstance(raw, dict) else {"cohesion_score": 0.5, "issues": [], "summary": "Invalid results"}
 

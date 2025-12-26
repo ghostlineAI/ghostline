@@ -6,11 +6,11 @@ import enum
 import uuid
 
 from sqlalchemy import JSON, Column, DateTime, Enum, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+from app.db.types import GUID
 
 
 class MaterialType(enum.Enum):
@@ -45,7 +45,7 @@ class SourceMaterial(Base):
 
     __tablename__ = "source_materials"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     filename = Column(String(500), nullable=False)
     material_type = Column(Enum(MaterialType), nullable=False)
     file_size = Column(Integer)  # in bytes
@@ -74,7 +74,7 @@ class SourceMaterial(Base):
     file_metadata = Column(JSON, default=dict)
 
     # Project
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    project_id = Column(GUID(), ForeignKey("projects.id"), nullable=False)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

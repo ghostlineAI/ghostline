@@ -167,7 +167,7 @@ class TestAuthenticationFlow:
     def test_access_protected_endpoint_without_token(self, client: TestClient):
         """Test accessing protected endpoint without token."""
         response = client.get("/api/v1/users/me")
-        assert response.status_code == 403  # API returns 403 Forbidden instead of 401
+        assert response.status_code == 401
         assert "not authenticated" in response.json()["detail"].lower()
 
     def test_access_protected_endpoint_with_invalid_token(self, client: TestClient):

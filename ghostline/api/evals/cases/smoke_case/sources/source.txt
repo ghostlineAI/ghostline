@@ -1,0 +1,6 @@
+This is a tiny source file used for the eval harness smoke test.
+
+It contains one phrase we expect to appear verbatim in the generated text:
+verbatim phrase from source
+
+

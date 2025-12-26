@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     generation,
     projects,
     source_materials,
+    status,
     users,
 )
 
@@ -29,3 +30,4 @@ api_router.include_router(
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])
+api_router.include_router(status.router, tags=["status"])

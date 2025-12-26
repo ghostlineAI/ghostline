@@ -254,10 +254,22 @@ class ProcessingService:
             
             # Combine and create embedding
             combined_text = "\n\n---\n\n".join(sample_texts)
-            embedding_result = self.embeddings.embed_text(combined_text)
+            # Cap to keep providers happy; this is a *voice anchor* not full-document retrieval.
+            embedding_result = self.embeddings.embed_text(combined_text[:8000])
             
             # Analyze style with LLM (optional, can be done separately)
             style_description = self._analyze_style(sample_texts)
+
+            # Extract deterministic stylometry features + phrase lists for stronger prompt guidance
+            try:
+                from app.services.voice_metrics import VoiceMetricsService
+
+                voice_metrics = VoiceMetricsService(embedding_service=self.embeddings)
+                styl = voice_metrics.extract_features(combined_text)
+            except Exception:
+                styl = None
+
+            common_phrases, sentence_starters, transition_words = self._extract_voice_phrase_lists(sample_texts)
             
             # Create or update voice profile
             existing_profile = db.query(VoiceProfile).filter(
@@ -267,12 +279,82 @@ class ProcessingService:
             if existing_profile:
                 existing_profile.voice_embedding = embedding_result.embedding
                 existing_profile.style_description = style_description
+                existing_profile.sample_text = combined_text[:2000]
+                existing_profile.common_phrases = common_phrases
+                existing_profile.sentence_starters = sentence_starters
+                existing_profile.transition_words = transition_words
+                if styl is not None:
+                    existing_profile.avg_sentence_length = styl.avg_sentence_length
+                    existing_profile.sentence_length_std = styl.sentence_length_std
+                    existing_profile.avg_word_length = styl.avg_word_length
+                    existing_profile.vocabulary_complexity = styl.vocabulary_complexity
+                    existing_profile.vocabulary_richness = styl.vocabulary_richness
+                    existing_profile.punctuation_density = styl.punctuation_density
+                    existing_profile.question_ratio = styl.question_ratio
+                    existing_profile.exclamation_ratio = styl.exclamation_ratio
+                    existing_profile.avg_paragraph_length = styl.avg_paragraph_length
+                    existing_profile.stylistic_elements = {
+                        **(existing_profile.stylistic_elements or {}),
+                        "stylometry": {
+                            "avg_sentence_length": styl.avg_sentence_length,
+                            "sentence_length_std": styl.sentence_length_std,
+                            "avg_word_length": styl.avg_word_length,
+                            "vocabulary_complexity": styl.vocabulary_complexity,
+                            "vocabulary_richness": styl.vocabulary_richness,
+                            "punctuation_density": styl.punctuation_density,
+                            "question_ratio": styl.question_ratio,
+                            "exclamation_ratio": styl.exclamation_ratio,
+                            "comma_density": styl.comma_density,
+                            "semicolon_density": styl.semicolon_density,
+                            "avg_paragraph_length": styl.avg_paragraph_length,
+                            "paragraph_count": styl.paragraph_count,
+                            "sentence_count": styl.sentence_count,
+                            "total_words": styl.total_words,
+                            "total_characters": styl.total_characters,
+                        },
+                    }
                 profile = existing_profile
             else:
                 profile = VoiceProfile(
                     project_id=project.id,
                     voice_embedding=embedding_result.embedding,
                     style_description=style_description,
+                    sample_text=combined_text[:2000],
+                    common_phrases=common_phrases,
+                    sentence_starters=sentence_starters,
+                    transition_words=transition_words,
+                    avg_sentence_length=getattr(styl, "avg_sentence_length", None) if styl is not None else None,
+                    sentence_length_std=getattr(styl, "sentence_length_std", None) if styl is not None else None,
+                    avg_word_length=getattr(styl, "avg_word_length", None) if styl is not None else None,
+                    vocabulary_complexity=getattr(styl, "vocabulary_complexity", None) if styl is not None else None,
+                    vocabulary_richness=getattr(styl, "vocabulary_richness", None) if styl is not None else None,
+                    punctuation_density=getattr(styl, "punctuation_density", None) if styl is not None else None,
+                    question_ratio=getattr(styl, "question_ratio", None) if styl is not None else None,
+                    exclamation_ratio=getattr(styl, "exclamation_ratio", None) if styl is not None else None,
+                    avg_paragraph_length=getattr(styl, "avg_paragraph_length", None) if styl is not None else None,
+                    stylistic_elements=(
+                        {
+                            "stylometry": {
+                                "avg_sentence_length": styl.avg_sentence_length,
+                                "sentence_length_std": styl.sentence_length_std,
+                                "avg_word_length": styl.avg_word_length,
+                                "vocabulary_complexity": styl.vocabulary_complexity,
+                                "vocabulary_richness": styl.vocabulary_richness,
+                                "punctuation_density": styl.punctuation_density,
+                                "question_ratio": styl.question_ratio,
+                                "exclamation_ratio": styl.exclamation_ratio,
+                                "comma_density": styl.comma_density,
+                                "semicolon_density": styl.semicolon_density,
+                                "avg_paragraph_length": styl.avg_paragraph_length,
+                                "paragraph_count": styl.paragraph_count,
+                                "sentence_count": styl.sentence_count,
+                                "total_words": styl.total_words,
+                                "total_characters": styl.total_characters,
+                            }
+                        }
+                        if styl is not None
+                        else {}
+                    ),
                 )
                 db.add(profile)
             
@@ -291,6 +373,67 @@ class ProcessingService:
                     clear_cost_context(cost_token)
                 except Exception:
                     pass
+
+    def _extract_voice_phrase_lists(self, sample_texts: list[str]) -> tuple[list[str], list[str], list[str]]:
+        """
+        Deterministically extract lightweight phrase lists to help steer voice:
+        - common_phrases (bigrams/trigrams)
+        - sentence_starters (first 1-2 words of sentences)
+        - transition_words (frequent transition words/phrases)
+        """
+        import re
+        from collections import Counter
+
+        combined = "\n\n".join(t for t in sample_texts if t).strip()
+        if not combined:
+            return [], [], []
+
+        # Sentence starters
+        sentence_split = re.split(r"(?<=[.!?])\s+", combined)
+        starters: Counter[str] = Counter()
+        word_pat = re.compile(r"\b\w+\b")
+        for s in sentence_split:
+            w = word_pat.findall(s.lower())
+            if len(w) >= 2:
+                starters[" ".join(w[:2])] += 1
+            elif len(w) == 1:
+                starters[w[0]] += 1
+        sentence_starters = [p for p, c in starters.most_common(20) if c >= 2][:10]
+
+        # Common phrases (bigrams/trigrams)
+        stop = {
+            "the", "a", "an", "and", "or", "but", "if", "then", "to", "of", "in", "on", "for", "with",
+            "is", "are", "was", "were", "be", "been", "it", "that", "this", "i", "you", "we", "they",
+        }
+        words = [w for w in word_pat.findall(combined.lower()) if w]
+        bigrams = Counter()
+        trigrams = Counter()
+        for i in range(len(words) - 1):
+            w1, w2 = words[i], words[i + 1]
+            if w1 in stop and w2 in stop:
+                continue
+            bigrams[f"{w1} {w2}"] += 1
+        for i in range(len(words) - 2):
+            w1, w2, w3 = words[i], words[i + 1], words[i + 2]
+            if w1 in stop and w2 in stop and w3 in stop:
+                continue
+            trigrams[f"{w1} {w2} {w3}"] += 1
+        common_phrases = [p for p, c in (trigrams + bigrams).most_common(30) if c >= 2][:10]
+
+        # Transition words (hand-curated set, counted in samples)
+        transitions = [
+            "but", "and", "so", "because", "however", "still", "yet", "instead",
+            "also", "especially", "for example", "for instance", "in other words",
+            "in practice", "at the same time", "on the other hand", "in the end",
+        ]
+        lower = combined.lower()
+        trans_counts: Counter[str] = Counter()
+        for t in transitions:
+            # crude whole-phrase count
+            trans_counts[t] = lower.count(t)
+        transition_words = [t for t, c in trans_counts.most_common(20) if c > 0][:12]
+
+        return common_phrases, sentence_starters, transition_words
     
     def _analyze_style(self, sample_texts: list[str]) -> str:
         """Basic style analysis without LLM."""

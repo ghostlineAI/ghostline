@@ -6,11 +6,11 @@ import enum
 import uuid
 
 from sqlalchemy import JSON, Column, DateTime, Enum, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+from app.db.types import GUID
 
 
 class ProjectStatus(enum.Enum):
@@ -41,7 +41,7 @@ class Project(Base):
 
     __tablename__ = "projects"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     title = Column(String(500), nullable=False)
     subtitle = Column(String(500))
     description = Column(Text)
@@ -60,7 +60,7 @@ class Project(Base):
     settings = Column(JSON, default=dict)
 
     # Owner
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    owner_id = Column(GUID(), ForeignKey("users.id"), nullable=False)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -68,7 +68,7 @@ class Project(Base):
     completed_at = Column(DateTime(timezone=True))
 
     # Forking support
-    forked_from_project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"))
+    forked_from_project_id = Column(GUID(), ForeignKey("projects.id"))
 
     # Relationships
     owner = relationship("User", back_populates="projects")

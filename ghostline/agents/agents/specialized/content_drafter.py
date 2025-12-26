@@ -96,13 +96,15 @@ CRITICAL HUMANNESS (do not sound like AI):
 - Prefer longer paragraphs and natural transitions over constant section breaks.
 - Do NOT introduce named "frameworks" or acronym systems (e.g., "FOUNDATION Framework", "TOOLS framework").
 - Avoid formulaic patterns like "Stage 1 / Stage 2 / Stage 3" unless the source uses them.
+- Avoid em-dashes (—/–) and double-hyphens (--). Prefer commas or periods.
 - Avoid generic motivational/coach language. Write like a real person processing real notes.
 
 FIDELITY TO THE AUTHOR'S NOTES:
 - Do NOT invent personal stories (e.g., "The morning I realized...") unless that exact moment is present in the sources.
 - If you need a vignette, it must be explicitly grounded as an example drawn from the notes.
 - It's OK to add brief connective tissue, but it must remain non-specific and non-factual.
-- Every substantive paragraph (≥20 words) MUST include at least one [citation: ...] marker. If you cannot cite it, delete it.
+- Citations are claim-level: whenever you make a factual claim or integrate a specific phrase from sources, add a [citation: ...] marker for that sentence.
+- It's OK for some sentences/paragraphs to have NO citations if they're purely connective/reflection and add no new factual claims.
 
 INTEGRATING SOURCE CONTENT (IMPORTANT - NO DOUBLE QUOTING):
 - Include verbatim text from sources NATURALLY in prose - do NOT wrap it in quotation marks unless:
@@ -113,13 +115,13 @@ INTEGRATING SOURCE CONTENT (IMPORTANT - NO DOUBLE QUOTING):
 - RIGHT: Taking a step back isn't a delay, as I noted in my journal, and this became a cornerstone of my approach [citation: file.pdf - "Taking a step back isn't a delay"]
 - The verbatim text flows naturally into the sentence without extra quotation marks
 
-OUTPUT FORMAT CONSTRAINT (VERY IMPORTANT):
-- Each substantive paragraph should:
-  1) Integrate 1-2 verbatim phrases (8-25 words) from sources naturally into prose
-  2) Include a [citation: ...] marker after each integrated phrase
-  3) Add 1-2 short sentences of commentary that stay close to the content (no new facts)
-- Do NOT wrap the verbatim text in quotation marks - let it flow naturally
-- Keep paragraphs tight (prefer 60-110 words total). If you need more, add another paragraph instead of expanding.
+CLAIM-LEVEL GROUNDING (VERY IMPORTANT):
+- Do NOT force a rigid paragraph template.
+- Put citations on the sentences that need them (claims), not on every paragraph.
+- Soft target: roughly 1 citation every 150-250 words, and more when the writing is claim-dense.
+- Each citation marker must contain an exact quote from the sources, and that quote must appear verbatim in the prose (outside the marker).
+- Keep cited phrases short (8-25 words) so deterministic verification can succeed.
+- Write with varied paragraph lengths; many paragraphs can be 120-220 words. Avoid the "two paragraphs per idea" cadence.
 
 STRUCTURAL VARIETY (CRITICAL):
 Avoid making every chapter follow the same structural pattern. Vary your approach:

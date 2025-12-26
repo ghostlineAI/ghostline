@@ -13,7 +13,8 @@ from app.services.auth import AuthService
 router = APIRouter()
 
 
-@router.post("/register/", response_model=UserResponse)
+@router.post("/register", response_model=UserResponse)
+@router.post("/register/", response_model=UserResponse, include_in_schema=False)
 async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     """Register a new user."""
     # Check if email already exists
@@ -53,7 +54,8 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/login/", response_model=Token)
+@router.post("/login", response_model=Token)
+@router.post("/login/", response_model=Token, include_in_schema=False)
 async def login(credentials: UserLogin, db: Session = Depends(get_db)):
     """Login user and return access token."""
     user = AuthService.authenticate_user(db, credentials.email, credentials.password)

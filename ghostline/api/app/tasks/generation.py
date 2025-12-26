@@ -477,6 +477,77 @@ def analyze_voice_task(self, task_id: str):
         
         # Extract stylometry features
         stylometry_features = voice_metrics.extract_features(combined_text)
+
+        # Build a compact style description + phrase lists (deterministic)
+        def _style_description_from_features() -> str:
+            avg = float(stylometry_features.avg_sentence_length or 0.0)
+            vocab = float(stylometry_features.vocabulary_complexity or 0.0)
+            punct = float(stylometry_features.punctuation_density or 0.0)
+            length_desc = "short" if avg < 15 else "medium" if avg < 25 else "long"
+            vocab_desc = "simple" if vocab < 0.4 else "moderate" if vocab < 0.6 else "rich"
+            return (
+                f"Writing style with {length_desc} sentences ({avg:.1f} words avg), "
+                f"{vocab_desc} vocabulary diversity ({vocab:.2f}), "
+                f"and punctuation density {punct:.1f} per 100 words."
+            )
+
+        def _extract_phrase_lists(texts: list[str]) -> tuple[list[str], list[str], list[str]]:
+            import re
+            from collections import Counter
+
+            combined = "\n\n".join(t for t in texts if t).strip()
+            if not combined:
+                return [], [], []
+
+            word_pat = re.compile(r"\b\w+\b")
+
+            # Sentence starters
+            sentence_split = re.split(r"(?<=[.!?])\s+", combined)
+            starters: Counter[str] = Counter()
+            for s in sentence_split:
+                w = word_pat.findall(s.lower())
+                if len(w) >= 2:
+                    starters[" ".join(w[:2])] += 1
+                elif len(w) == 1:
+                    starters[w[0]] += 1
+            sentence_starters = [p for p, c in starters.most_common(20) if c >= 2][:10]
+
+            # Common phrases (bigrams/trigrams)
+            stop = {
+                "the", "a", "an", "and", "or", "but", "if", "then", "to", "of", "in", "on", "for", "with",
+                "is", "are", "was", "were", "be", "been", "it", "that", "this", "i", "you", "we", "they",
+            }
+            words = [w for w in word_pat.findall(combined.lower()) if w]
+            bigrams = Counter()
+            trigrams = Counter()
+            for i in range(len(words) - 1):
+                w1, w2 = words[i], words[i + 1]
+                if w1 in stop and w2 in stop:
+                    continue
+                bigrams[f"{w1} {w2}"] += 1
+            for i in range(len(words) - 2):
+                w1, w2, w3 = words[i], words[i + 1], words[i + 2]
+                if w1 in stop and w2 in stop and w3 in stop:
+                    continue
+                trigrams[f"{w1} {w2} {w3}"] += 1
+            common_phrases = [p for p, c in (trigrams + bigrams).most_common(30) if c >= 2][:10]
+
+            # Transition words (hand-curated set, counted in samples)
+            transitions = [
+                "but", "and", "so", "because", "however", "still", "yet", "instead",
+                "also", "especially", "for example", "for instance", "in other words",
+                "in practice", "at the same time", "on the other hand", "in the end",
+            ]
+            lower = combined.lower()
+            trans_counts: Counter[str] = Counter()
+            for t in transitions:
+                trans_counts[t] = lower.count(t)
+            transition_words = [t for t, c in trans_counts.most_common(20) if c > 0][:12]
+
+            return common_phrases, sentence_starters, transition_words
+
+        style_description = _style_description_from_features()
+        common_phrases, sentence_starters, transition_words = _extract_phrase_lists(all_text)
         
         task.progress = 60
         task.current_step = "Generating voice embedding..."
@@ -505,6 +576,30 @@ def analyze_voice_task(self, task_id: str):
             "question_ratio": stylometry_features.question_ratio,
             "exclamation_ratio": stylometry_features.exclamation_ratio,
             "avg_paragraph_length": stylometry_features.avg_paragraph_length,
+            "style_description": style_description,
+            "sample_text": combined_text[:2000],
+            "common_phrases": common_phrases,
+            "sentence_starters": sentence_starters,
+            "transition_words": transition_words,
+            "stylistic_elements": {
+                "stylometry": {
+                    "avg_sentence_length": stylometry_features.avg_sentence_length,
+                    "sentence_length_std": stylometry_features.sentence_length_std,
+                    "avg_word_length": stylometry_features.avg_word_length,
+                    "vocabulary_complexity": stylometry_features.vocabulary_complexity,
+                    "vocabulary_richness": stylometry_features.vocabulary_richness,
+                    "punctuation_density": stylometry_features.punctuation_density,
+                    "question_ratio": stylometry_features.question_ratio,
+                    "exclamation_ratio": stylometry_features.exclamation_ratio,
+                    "comma_density": stylometry_features.comma_density,
+                    "semicolon_density": stylometry_features.semicolon_density,
+                    "avg_paragraph_length": stylometry_features.avg_paragraph_length,
+                    "paragraph_count": stylometry_features.paragraph_count,
+                    "sentence_count": stylometry_features.sentence_count,
+                    "total_words": stylometry_features.total_words,
+                    "total_characters": stylometry_features.total_characters,
+                }
+            },
             "similarity_threshold": 0.85,
             "embedding_weight": 0.4,
             "is_active": True,

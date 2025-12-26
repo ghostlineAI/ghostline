@@ -10,6 +10,7 @@ import re
 from typing import Optional
 
 from pydantic import BaseModel, Field
+from pydantic import ValidationError
 
 from agents.base.agent import (
     AgentConfig,
@@ -19,6 +20,7 @@ from agents.base.agent import (
     ConversationAgent,
     LLMProvider,
 )
+from agents.specialized.schemas import BookOutlineModel
 
 
 class OutlineState(BaseModel):
@@ -167,16 +169,23 @@ Output the complete revised outline as valid JSON."""
             content = re.sub(r'\n?```$', '', content)
         
         try:
-            return json.loads(content)
+            raw = json.loads(content)
         except json.JSONDecodeError:
             # Try to extract JSON
             match = re.search(r'\{[\s\S]*\}', content)
             if match:
                 try:
-                    return json.loads(match.group())
+                    raw = json.loads(match.group())
                 except json.JSONDecodeError:
                     pass
-            return {}
+            raw = {}
+
+        # Validate / normalize against schema
+        try:
+            model = BookOutlineModel.model_validate(raw)
+            return model.model_dump()
+        except ValidationError:
+            return raw if isinstance(raw, dict) else {}
 
 
 class OutlineCriticAgent(ConversationAgent):

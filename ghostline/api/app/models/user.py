@@ -5,11 +5,11 @@ User model for authentication and profile management.
 import uuid
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+from app.db.types import GUID
 
 
 class User(Base):
@@ -17,7 +17,7 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, index=True, nullable=False)
     username = Column(String(100), unique=True, index=True, nullable=False)
     full_name = Column(String(255))
@@ -31,7 +31,7 @@ class User(Base):
     avatar_url = Column(String(500))
 
     # Billing
-    billing_plan_id = Column(UUID(as_uuid=True), ForeignKey("billing_plans.id"))
+    billing_plan_id = Column(GUID(), ForeignKey("billing_plans.id"))
     token_balance = Column(Integer, default=0)
     stripe_customer_id = Column(String(255), unique=True)
 

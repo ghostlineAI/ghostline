@@ -59,11 +59,22 @@ def _voice_profile_to_dict(vp: Any) -> dict:
         "id": str(getattr(vp, "id", "")) if getattr(vp, "id", None) else None,
         "name": getattr(vp, "name", None),
         "description": getattr(vp, "description", None),
+        "sample_text": getattr(vp, "sample_text", None),
         "tone": getattr(vp, "tone", None),
         "style": getattr(vp, "style", None),
         "style_description": getattr(vp, "style_description", None),
         "style_attributes": getattr(vp, "style_attributes", None),
         "stylistic_elements": getattr(vp, "stylistic_elements", None),
+        # Numeric stylometry metrics
+        "avg_sentence_length": getattr(vp, "avg_sentence_length", None),
+        "sentence_length_std": getattr(vp, "sentence_length_std", None),
+        "avg_word_length": getattr(vp, "avg_word_length", None),
+        "vocabulary_complexity": getattr(vp, "vocabulary_complexity", None),
+        "vocabulary_richness": getattr(vp, "vocabulary_richness", None),
+        "punctuation_density": getattr(vp, "punctuation_density", None),
+        "question_ratio": getattr(vp, "question_ratio", None),
+        "exclamation_ratio": getattr(vp, "exclamation_ratio", None),
+        "avg_paragraph_length": getattr(vp, "avg_paragraph_length", None),
         "common_phrases": list(getattr(vp, "common_phrases", []) or []),
         "sentence_starters": list(getattr(vp, "sentence_starters", []) or []),
         "transition_words": list(getattr(vp, "transition_words", []) or []),
@@ -131,6 +142,8 @@ class WorkflowState(TypedDict, total=False):
     chapters: list[dict]  # {number, title, content, status}
     current_chapter: int
     chapter_summaries: list[str]
+    # Canonical per-chapter memory (fed forward to improve long-form coherence)
+    chapter_canon: list[dict]
     
     # Quality tracking
     voice_scores: list[float]
@@ -208,6 +221,7 @@ def create_initial_state(
         chapters=[],
         current_chapter=0,
         chapter_summaries=[],
+        chapter_canon=[],
         voice_scores=[],
         fact_check_scores=[],
         cohesion_scores=[],
@@ -220,6 +234,84 @@ def create_initial_state(
         completed_at=None,
         error=None,
     )
+
+
+def _build_chapter_canon(
+    *,
+    chapter_number: int,
+    title: str,
+    chapter_outline: dict,
+    chapter_result: dict,
+) -> dict:
+    """
+    Build a canonical, feed-forward memory object for the chapter.
+
+    This intentionally prefers *grounded* information (FactChecker claim mappings)
+    over free-form summaries so later chapters have a stable "canon" to adhere to.
+    """
+    claim_mappings = list(chapter_result.get("claim_mappings") or [])
+    supported: list[str] = []
+    needs_review: list[str] = []
+    unsupported: list[str] = []
+    seen: set[str] = set()
+
+    for m in claim_mappings:
+        claim = str(m.get("claim") or "").strip()
+        if not claim:
+            continue
+        key = claim.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+
+        if bool(m.get("is_supported")):
+            supported.append(claim)
+        else:
+            unsupported.append(claim)
+
+        if bool(m.get("needs_human_review")) or (m.get("quote_verified") is False):
+            needs_review.append(claim)
+
+    qgr = chapter_result.get("quality_gate_report") or {}
+
+    return {
+        "chapter_number": int(chapter_number),
+        "title": str(title),
+        "outline_summary": str(chapter_outline.get("summary") or "").strip(),
+        "key_points": list(chapter_outline.get("key_points") or []),
+        "grounded_commitments": supported[:8],
+        "needs_review": needs_review[:5],
+        "unsupported": unsupported[:5],
+        "citations_ok": bool(qgr.get("citations_ok")) if isinstance(qgr, dict) else None,
+        "style_issues": (qgr.get("style_issues") or []) if isinstance(qgr, dict) else [],
+    }
+
+
+def _format_chapter_canon(canon: dict) -> str:
+    """Format the canon object into a compact promptable block."""
+    n = canon.get("chapter_number")
+    title = canon.get("title") or ""
+    lines: list[str] = [f"CHAPTER {n}: {title}".strip()]
+
+    outline_summary = str(canon.get("outline_summary") or "").strip()
+    if outline_summary:
+        lines.append(f"Intent: {outline_summary}")
+
+    key_points = list(canon.get("key_points") or [])
+    if key_points:
+        lines.append("Key points: " + "; ".join(str(k) for k in key_points[:6] if k))
+
+    grounded = list(canon.get("grounded_commitments") or [])
+    if grounded:
+        lines.append("Grounded commitments:")
+        lines.extend(f"- {c}" for c in grounded[:8])
+
+    needs_review = list(canon.get("needs_review") or [])
+    if needs_review:
+        lines.append("Needs review / be careful not to assert:")
+        lines.extend(f"- {c}" for c in needs_review[:5])
+
+    return "\n".join(lines).strip()
 
 
 # Node functions for the workflow
@@ -547,11 +639,18 @@ def draft_chapter(state: WorkflowState) -> WorkflowState:
     try:
         from orchestrator.subgraphs import ChapterSubgraph
         chapter_subgraph = ChapterSubgraph()
+
+        canon_blocks = [
+            _format_chapter_canon(c)
+            for c in (state.get("chapter_canon", []) or [])
+            if isinstance(c, dict)
+        ]
         result = chapter_subgraph.run(
             chapter_outline=chapter_outline,
             source_chunks=source_chunks,
             source_chunks_with_citations=source_chunks_with_citations,
-            previous_summaries=state.get("chapter_summaries", []) or [],
+            # Feed forward canonical memory (not just thin summaries) to improve long-form coherence.
+            previous_summaries=canon_blocks[-3:],
             voice_profile=state.get("voice_profile") or {},
             # Use calculated target from page count, or default to 3000 words
             target_words=state.get("target_words_per_chapter") or 3000,
@@ -618,6 +717,15 @@ def draft_chapter(state: WorkflowState) -> WorkflowState:
         if not summary and content:
             summary = " ".join(content.split()[:60])
         state.setdefault("chapter_summaries", []).append(summary)
+
+        # Canonical memory for the next chapters (grounded, structured)
+        canon = _build_chapter_canon(
+            chapter_number=chapter_number,
+            title=title,
+            chapter_outline=chapter_outline,
+            chapter_result=result,
+        )
+        state.setdefault("chapter_canon", []).append(canon)
 
         # Persist Chapter row
         db2 = _get_db_session()

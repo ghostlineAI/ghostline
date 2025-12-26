@@ -154,7 +154,7 @@ class TestPhase2ViewUploadedMaterialsE2E:
             print(f"[E2E] Testing DOWNLOAD (download icon) for material: {filename}")
             
             response = client.get(
-                f"/api/v1/source-materials/{material_id}/download",
+                f"/api/v1/source-materials/{material_id}/download-url",
                 headers={"Authorization": f"Bearer {test_user_token}"}
             )
             
@@ -170,19 +170,22 @@ class TestPhase2ViewUploadedMaterialsE2E:
             assert download_data["expires_in"] == 3600  # 1 hour
             assert download_data["download_url"].startswith(("https://", "http://"))
             
-            # Verify presigned URL actually works (unless in mock mode)
+            # Verify the URL points to a real object.
             download_url = download_data["download_url"]
-            if not "mock-s3.localhost" in download_url:
+            storage_service = StorageService()
+            if storage_service.use_local:
+                # In local mode the URL targets the API file-serving endpoint; assert the file exists on disk.
+                assert "/api/v1/files/" in download_url
+                key = download_url.split("/api/v1/files/")[-1]
+                assert key.endswith(filename)
+                assert storage_service.file_exists(key)
+                print(f"[E2E] ✅ DOWNLOAD URL points to existing local file for: {filename}")
+            else:
                 print(f"[E2E] Verifying presigned URL works for: {filename}")
-                
-                # Test that the presigned URL actually downloads the file
                 download_response = requests.get(download_url, timeout=30)
                 assert download_response.status_code == 200, f"Presigned URL failed for {filename}"
                 assert len(download_response.content) > 0, f"Downloaded content empty for {filename}"
-                
                 print(f"[E2E] ✅ DOWNLOAD (download icon) working for: {filename}")
-            else:
-                print(f"[E2E] ⚠️  S3 in mock mode, skipping actual download test for: {filename}")
 
         # Step 6: Test DELETE functionality (trash icon) - Remove materials
         for uploaded_material in uploaded_materials:
@@ -374,6 +377,10 @@ class TestPhase2ViewUploadedMaterialsE2E:
         """Test S3 storage integration for upload, download, and delete operations."""
         
         print("[E2E] Testing S3 storage integration")
+
+        storage_service = StorageService()
+        if storage_service.use_local:
+            pytest.skip("S3 integration test skipped: USE_LOCAL_STORAGE is enabled")
         
         # Create test project
         project_data = {
@@ -405,7 +412,7 @@ class TestPhase2ViewUploadedMaterialsE2E:
         
         # Test S3 download URL generation
         response = client.get(
-            f"/api/v1/source-materials/{material_id}/download",
+            f"/api/v1/source-materials/{material_id}/download-url",
             headers={"Authorization": f"Bearer {test_user_token}"}
         )
         
@@ -414,40 +421,25 @@ class TestPhase2ViewUploadedMaterialsE2E:
         
         # Verify S3 URL format (unless in mock mode)
         download_url = download_data["download_url"]
-        if not "mock-s3.localhost" in download_url:
-            # Should be a valid S3 presigned URL
-            assert "amazonaws.com" in download_url or "s3" in download_url
-            assert "Signature=" in download_url or "X-Amz-Signature=" in download_url
-            
-            # Test actual download
-            download_response = requests.get(download_url, timeout=10)
-            assert download_response.status_code == 200
-            assert download_response.content == test_content
-            
-            print("[E2E] ✅ S3 presigned URL download working")
-        else:
-            print("[E2E] ⚠️  S3 in mock mode, skipping download verification")
+        # Should be a valid S3 presigned URL
+        assert "amazonaws.com" in download_url or "s3" in download_url
+        assert "Signature=" in download_url or "X-Amz-Signature=" in download_url
+        
+        # Test actual download
+        download_response = requests.get(download_url, timeout=10)
+        assert download_response.status_code == 200
+        assert download_response.content == test_content
+        
+        print("[E2E] ✅ S3 presigned URL download working")
         
         # Test S3 delete
-        storage_service = StorageService()
-        if not storage_service.mock_mode:
-            # Get material to check S3 key
-            response = client.get(
-                f"/api/v1/source-materials/{material_id}",
-                headers={"Authorization": f"Bearer {test_user_token}"}
-            )
-            assert response.status_code == 200
-            
-            # Delete material (should also delete from S3)
-            response = client.delete(
-                f"/api/v1/source-materials/{material_id}",
-                headers={"Authorization": f"Bearer {test_user_token}"}
-            )
-            assert response.status_code == 200
-            
-            print("[E2E] ✅ S3 storage integration test completed")
-        else:
-            print("[E2E] ⚠️  S3 in mock mode, skipping S3 delete verification")
+        response = client.delete(
+            f"/api/v1/source-materials/{material_id}",
+            headers={"Authorization": f"Bearer {test_user_token}"}
+        )
+        assert response.status_code == 200
+        
+        print("[E2E] ✅ S3 storage integration test completed")
 
     def test_concurrent_operations(
         self, client, db_session: Session, test_user_token: str, test_user: User

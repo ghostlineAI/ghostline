@@ -30,7 +30,7 @@ class TestDataViewE2E:
     """End-to-end tests for data view functionality."""
 
     def test_complete_data_view_workflow(
-        self, client, db_session: Session, test_user_token: str, test_user: User
+        self, client, db: Session, auth_headers: dict, test_user: User
     ):
         """Test the complete data view workflow: upload, view, download, delete."""
         
@@ -46,7 +46,7 @@ class TestDataViewE2E:
         response = client.post(
             "/api/v1/projects/",
             json=project_data,
-            headers={"Authorization": f"Bearer {test_user_token}"}
+            headers=auth_headers,
         )
         assert response.status_code == 200
         project = response.json()
@@ -69,7 +69,7 @@ class TestDataViewE2E:
                 "/api/v1/source-materials/upload",
                 files={"file": (filename, content, content_type)},
                 data={"project_id": project_id},
-                headers={"Authorization": f"Bearer {test_user_token}"}
+                headers=auth_headers,
             )
             
             assert response.status_code == 200
@@ -94,11 +94,12 @@ class TestDataViewE2E:
             # Get content via proxy endpoint (avoids CORS)
             response = client.get(
                 f"/api/v1/source-materials/{material_id}/content",
-                headers={"Authorization": f"Bearer {test_user_token}"}
+                headers=auth_headers,
             )
             
             assert response.status_code == 200
-            assert response.headers.get("content-type") == material["content_type"]
+            content_type = response.headers.get("content-type") or ""
+            assert content_type.startswith(material["content_type"])
             assert len(response.content) > 0
             
             # Verify content matches for text files
@@ -120,7 +121,7 @@ class TestDataViewE2E:
             # Test download endpoint
             response = client.get(
                 f"/api/v1/source-materials/{material_id}/download",
-                headers={"Authorization": f"Bearer {test_user_token}"}
+                headers=auth_headers,
             )
             
             assert response.status_code == 200
@@ -143,7 +144,7 @@ class TestDataViewE2E:
         material_id = uploaded_materials[0]["id"]
         response = client.get(
             f"/api/v1/source-materials/{material_id}/download-url",
-            headers={"Authorization": f"Bearer {test_user_token}"}
+            headers=auth_headers,
         )
         
         assert response.status_code == 200
@@ -165,7 +166,7 @@ class TestDataViewE2E:
             
             response = client.delete(
                 f"/api/v1/source-materials/{material_id}",
-                headers={"Authorization": f"Bearer {test_user_token}"}
+                headers=auth_headers,
             )
             
             assert response.status_code == 200
@@ -173,7 +174,7 @@ class TestDataViewE2E:
             # Verify deletion
             response = client.get(
                 f"/api/v1/source-materials/{material_id}",
-                headers={"Authorization": f"Bearer {test_user_token}"}
+                headers=auth_headers,
             )
             assert response.status_code == 404
             print(f"[E2E] ✅ Deleted and verified: {filename}")
@@ -181,7 +182,7 @@ class TestDataViewE2E:
         print("\n[E2E] ✅ Complete data view workflow test PASSED")
 
     def test_cors_prevention_via_proxy(
-        self, client, db_session: Session, test_user_token: str, test_user: User
+        self, client, db: Session, auth_headers: dict, test_user: User
     ):
         """Test that content proxy prevents CORS issues."""
         
@@ -197,7 +198,7 @@ class TestDataViewE2E:
         response = client.post(
             "/api/v1/projects/",
             json=project_data,
-            headers={"Authorization": f"Bearer {test_user_token}"}
+            headers=auth_headers,
         )
         project_id = response.json()["id"]
         
@@ -206,14 +207,14 @@ class TestDataViewE2E:
             "/api/v1/source-materials/upload",
             files={"file": ("cors-test.txt", b"CORS test content", "text/plain")},
             data={"project_id": project_id},
-            headers={"Authorization": f"Bearer {test_user_token}"}
+            headers=auth_headers,
         )
         material_id = response.json()["id"]
         
         # Test content endpoint returns proper headers
         response = client.get(
             f"/api/v1/source-materials/{material_id}/content",
-            headers={"Authorization": f"Bearer {test_user_token}"}
+            headers=auth_headers,
         )
         
         assert response.status_code == 200
@@ -221,7 +222,7 @@ class TestDataViewE2E:
         assert response.headers.get("cache-control") == "private, max-age=3600"
         print("[E2E] ✅ Content proxy working without CORS issues")
 
-    def test_auth_protection(self, client, db_session: Session):
+    def test_auth_protection(self, client, db: Session):
         """Test that all endpoints require authentication."""
         
         print("\n[E2E] Testing authentication protection")

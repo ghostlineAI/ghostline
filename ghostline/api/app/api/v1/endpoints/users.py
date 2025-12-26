@@ -10,7 +10,8 @@ from app.schemas.auth import UserResponse
 router = APIRouter()
 
 
-@router.get("/me/", response_model=UserResponse)
+@router.get("/me", response_model=UserResponse)
+@router.get("/me/", response_model=UserResponse, include_in_schema=False)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information."""
     return UserResponse(
@@ -29,6 +30,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}/", response_model=UserResponse, include_in_schema=False)
 async def get_user(
     user_id: str,
     db: Session = Depends(get_db),

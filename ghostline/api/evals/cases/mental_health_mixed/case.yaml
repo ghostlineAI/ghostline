@@ -1,0 +1,17 @@
+case_id: mental_health_mixed_modal
+
+# Mixed-modal canonical case (PDF + PDF + PNG).
+# Note: image extraction uses VLM by default; run with `--enable-vlm` if you want it included.
+sources:
+  - path: ../../../../mentalhealth1.pdf
+    filename: mentalhealth1.pdf
+  - path: ../../../../mentalhealth2.pdf
+    filename: mentalhealth2.pdf
+  - path: ../../../../mental_health.png
+    filename: mental_health.png
+    optional: true
+
+generated_texts:
+  - path: ../../../../mental_health_book_generated.md
+
+

@@ -10,6 +10,11 @@ from datetime import datetime
 
 
 API_URL = os.getenv('API_URL', 'https://api.dev.ghostline.ai/api/v1')
+RUN_LIVE = os.getenv("RUN_LIVE_DEV_E2E", "").lower() in ("1", "true", "yes")
+pytestmark = pytest.mark.skipif(
+    not RUN_LIVE,
+    reason="Requires live dev environment (set RUN_LIVE_DEV_E2E=1 to enable).",
+)
 
 
 class TestProjectDetailFlowE2E:

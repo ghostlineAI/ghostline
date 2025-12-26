@@ -8,8 +8,9 @@ Provides:
 """
 
 import logging
+import os
 from dataclasses import dataclass, field
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import text
@@ -210,10 +211,16 @@ class RAGService:
                 pass
             # Fall back to non-vector retrieval
             return self._fallback_retrieve(query, project_id, db, top_k)
-        
+
+        # Optional rerank/coverage selection to reduce semi-related chunks from large top_k.
+        rerank_enabled = os.getenv("GHOSTLINE_RAG_RERANK", "true").strip().lower() in ("1", "true", "yes", "on")
+        selected_rows = rows
+        if rerank_enabled and rows:
+            selected_rows = self._rerank_and_select_rows(query=query, rows=rows, top_k=top_k)
+
         # Build results
-        chunks = []
-        for row in rows:
+        chunks: list[RetrievedChunk] = []
+        for row in selected_rows:
             citation = Citation(
                 chunk_id=row.id,
                 source_material_id=row.source_material_id,
@@ -222,7 +229,7 @@ class RAGService:
                 content_preview=row.content[:200] if row.content else "",
                 similarity_score=row.similarity,
             )
-            
+
             chunk = RetrievedChunk(
                 content=row.content,
                 citation=citation,
@@ -230,10 +237,75 @@ class RAGService:
                 chunk_index=row.chunk_index,
             )
             chunks.append(chunk)
-        
+
         logger.info(f"RAG retrieved {len(chunks)} chunks for query: {query[:50]}...")
-        
+
         return RAGResult(query=query, chunks=chunks)
+
+    def _rerank_and_select_rows(self, query: str, rows: list, top_k: int) -> list:
+        """
+        Lightweight reranker for pgvector results.
+
+        Goal: reduce "semi-related" chunks when top_k is large by rewarding:
+        - relevance to the query (lexical overlap)
+        - source coverage diversity (avoid 20 chunks from one file)
+        while still respecting the underlying pgvector similarity.
+        """
+        import re
+        from collections import Counter
+
+        # Tokenize query
+        q_tokens = [t for t in re.findall(r"[A-Za-z0-9']+", (query or "").lower()) if len(t) >= 3]
+        q_set = set(q_tokens)
+        if not q_set:
+            return rows[:top_k]
+
+        # Coverage-aware greedy selection:
+        # 1) compute a base relevance score per row
+        # 2) pick rows greedily while penalizing already-selected filenames
+        counts = Counter([(getattr(r, "filename", None) or "") for r in rows])
+
+        base_scored: list[tuple[float, Any]] = []
+        for r in rows:
+            text = (getattr(r, "content", "") or "").lower()
+            t_tokens = set(re.findall(r"[A-Za-z0-9']+", text))
+            overlap = len(q_set & t_tokens) / max(len(q_set), 1)
+            sim = float(getattr(r, "similarity", 0.0) or 0.0)
+
+            fn = (getattr(r, "filename", None) or "")
+            # small penalty if the pgvector result set is dominated by this source
+            dominance_penalty = 1.0 / (1.0 + max(counts.get(fn, 1) - 1, 0) / 3.0)
+            base = (0.75 * sim) + (0.20 * overlap) + (0.05 * dominance_penalty)
+            base_scored.append((base, r))
+
+        base_scored.sort(key=lambda x: x[0], reverse=True)
+
+        picked: list[Any] = []
+        picked_by_fn: Counter[str] = Counter()
+        pool: list[Any] = [r for _, r in base_scored]
+
+        while pool and len(picked) < top_k:
+            best = None
+            best_score = None
+            for r in pool:
+                fn = (getattr(r, "filename", None) or "")
+                base = next((b for b, rr in base_scored if rr is r), None)
+                if base is None:
+                    continue
+                # Penalize repeated sources to improve coverage
+                repeat_penalty = 1.0 / (1.0 + picked_by_fn.get(fn, 0))
+                score = base * repeat_penalty
+                if best is None or score > (best_score or -1e9):
+                    best = r
+                    best_score = score
+
+            if best is None:
+                break
+            pool.remove(best)
+            picked.append(best)
+            picked_by_fn[(getattr(best, "filename", None) or "")] += 1
+
+        return picked
     
     def _fallback_retrieve(
         self,

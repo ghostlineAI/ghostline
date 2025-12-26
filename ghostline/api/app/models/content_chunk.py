@@ -9,11 +9,11 @@ import uuid
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+from app.db.types import GUID
 
 
 class ContentChunk(Base):
@@ -21,7 +21,7 @@ class ContentChunk(Base):
 
     __tablename__ = "content_chunks"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
 
     # Content
     content = Column(Text, nullable=False)
@@ -36,7 +36,8 @@ class ContentChunk(Base):
     end_char = Column(Integer, nullable=True)
 
     # Embeddings (1536 dimensions for OpenAI text-embedding-3-small)
-    embedding = Column(Vector(1536))
+    # NOTE: SQLite fallback so tests can run without pgvector.
+    embedding = Column(Vector(1536).with_variant(JSON(), "sqlite"))
     embedding_model = Column(String(100), default="text-embedding-3-small")
 
     # Citation tracking for RAG grounding
@@ -45,10 +46,10 @@ class ContentChunk(Base):
 
     # Foreign keys
     source_material_id = Column(
-        UUID(as_uuid=True), ForeignKey("source_materials.id"), nullable=False
+        GUID(), ForeignKey("source_materials.id"), nullable=False
     )
     project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+        GUID(), ForeignKey("projects.id"), nullable=True
     )
 
     # Timestamps
