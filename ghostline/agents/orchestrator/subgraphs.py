@@ -86,6 +86,12 @@ class ChapterSubgraphState(TypedDict, total=False):
     # UI-facing citation metadata
     content_clean: str
     citations: list[dict]
+
+    # Full per-iteration history (for audits/debugging)
+    revision_history: list[dict]
+    # Final quality gate evaluation
+    quality_gates_passed: bool
+    quality_gate_report: dict
     
     # Tracking
     iteration: int
@@ -1451,17 +1457,47 @@ Return ONLY the revised chapter text. No preamble, no explanations."""
         citations_ok = inline_ok and citation_markers > 0
         style_ok = len(style_issues) == 0
 
-        if not (voice_ok and citations_ok and style_ok):
-            raise RuntimeError(
-                "Chapter quality gates not met. "
-                f"voice_ok={voice_ok} citations_ok={citations_ok} style_ok={style_ok} "
-                f"(voice={state.get('voice_score')}, inline_quality={inline_quality:.2f}, "
-                f"inline_parsed={inline_parsed}, invalid={inline_invalid}, "
-                f"citations={citation_markers}, sentences={sentence_count}). "
-                f"Style issues: {style_issues}"
-            )
+        quality_gates_passed = bool(voice_ok and citations_ok and style_ok)
+        state["quality_gates_passed"] = quality_gates_passed
+        state["quality_gate_report"] = {
+            "voice_ok": voice_ok,
+            "citations_ok": citations_ok,
+            "style_ok": style_ok,
+            "voice_score": float(state.get("voice_score") or 0.0),
+            "voice_threshold": float(self.voice_threshold),
+            "inline_quality": float(inline_quality),
+            "inline_parsed": int(inline_parsed),
+            "inline_invalid": int(inline_invalid),
+            "inline_unverified": int(inline_unverified),
+            "citation_markers": int(citation_markers),
+            "sentence_count": int(sentence_count),
+            "style_issues": style_issues,
+            "max_turns": int(self.config.max_turns),
+            "final_raw_len": len(final_raw),
+            "final_len": len(final),
+        }
 
+        # Always store the best-effort final content + its citation metadata, even if
+        # quality gates did not pass. The caller decides whether to fail the overall
+        # workflow/run, but we never want to lose the failure diagnostics.
         state["final_content"] = final
+
+        # Append a final snapshot to the revision history
+        hist = list(state.get("revision_history") or [])
+        hist.append(
+            {
+                "phase": "finalize",
+                "iteration": int(state.get("iteration") or 0),
+                "voice_score": float(state.get("voice_score") or 0.0),
+                "fact_score": float(state.get("fact_score") or 0.0),
+                "cohesion_score": float(state.get("cohesion_score") or 0.0),
+                "citation_report": state.get("citation_report") or {},
+                "style_issues": style_issues,
+                "quality_gates_passed": quality_gates_passed,
+                "quality_gate_report": state.get("quality_gate_report") or {},
+            }
+        )
+        state["revision_history"] = hist
         
         return state
     
@@ -1478,7 +1514,8 @@ Return ONLY the revised chapter text. No preamble, no explanations."""
         inline_parsed = int(citation_report.get("inline_parsed") or 0)
         inline_quality = float(citation_report.get("inline_quality") or 0.0)
         inline_invalid = int(citation_report.get("inline_invalid_format") or 0)
-        style_ok = len(self._compute_style_issues(state.get("edited_content", state.get("draft_content", "")) or "")) == 0
+        style_issues = self._compute_style_issues(state.get("edited_content", state.get("draft_content", "")) or "")
+        style_ok = len(style_issues) == 0
         
         logger.info(
             f"🔄 [ChapterSubgraph] Checking revision: iter={iteration}, "
@@ -1486,6 +1523,25 @@ Return ONLY the revised chapter text. No preamble, no explanations."""
             f"citations={citation_quality:.2f} ({citation_total} claims), "
             f"inline_citations={inline_quality:.2f} ({inline_parsed}/{inline_total}), style_ok={style_ok}"
         )
+
+        # Persist per-iteration diagnostics so we can audit *all* failures, not just the last one.
+        hist = list(state.get("revision_history") or [])
+        hist.append(
+            {
+                "phase": "iteration_check",
+                "iteration": int(iteration),
+                "voice_score": float(voice_score or 0.0),
+                "fact_score": float(fact_score or 0.0),
+                "cohesion_score": float(cohesion_score or 0.0),
+                "voice_feedback": state.get("voice_feedback", ""),
+                "fact_feedback": state.get("fact_feedback", ""),
+                "cohesion_feedback": state.get("cohesion_feedback", ""),
+                "citation_report": dict(citation_report),
+                "style_ok": bool(style_ok),
+                "style_issues": style_issues,
+            }
+        )
+        state["revision_history"] = hist
         
         # Check iteration limit
         if iteration >= self.config.max_turns:
@@ -1552,6 +1608,11 @@ Return ONLY the revised chapter text. No preamble, no explanations."""
             draft_content="",
             edited_content="",
             final_content="",
+            content_clean="",
+            citations=[],
+            revision_history=[],
+            quality_gates_passed=False,
+            quality_gate_report={},
             voice_score=0.0,
             fact_score=0.0,
             cohesion_score=0.0,
@@ -1579,6 +1640,9 @@ Return ONLY the revised chapter text. No preamble, no explanations."""
             "iterations": result.get("iteration", 0),
             "tokens_used": result.get("tokens_used", 0),
             "cost": result.get("cost_incurred", 0.0),
+            "quality_gates_passed": bool(result.get("quality_gates_passed", False)),
+            "quality_gate_report": result.get("quality_gate_report") or {},
+            "revision_history": result.get("revision_history") or [],
             # Citation verification report
             "citations": result.get("citations", []),
             "claim_mappings": result.get("claim_mappings", []),

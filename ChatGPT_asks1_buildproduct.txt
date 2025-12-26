@@ -1,0 +1,102 @@
+Ok so we have this whole agentic structure correct?  For each ask of our system, we should log the entire agentic conversation back and forth, right?  So that we can debug and see that things are working properly.  Are we currently doing that?
+
+If not, please set up a structured way of doing that.  Or maybe langraph just stores that shit somewhere and we can dump that info to a file at the end of an ask?  
+
+
+------------------------------
+Is all the backend wired up to the frontend?  Let's do that right now as Phase 6 if it isn't.  
+
+Please map out everything that neeeds to happen.  
+
+Then Make stepwise changes in order to complete this so that we don't screw anything up. Test each step after you've finished it, and then after the whole phase is done, then you can push to GitHub.
+
+You must ensure that every backend feature we've implemented that is important for the UX shows up in the UX.  
+
+
+For now, I've added some preliminary data.  It's all my mental health notes.  
+
+Then phase 7 will test with actual data.  (So this new phase 7 is actually just your old phase 6)
+
+The task will be to distill this into a mental health book that generalizes for other people to use. Yeah.  Let's just do 10 pages as the initial test I guess?
+
+I didn't know exactly where to put the data or how to format it.  
+
+So I just put it in the root (i.e. GhostLine/, but feel free to move to wherever.) 
+
+there is mentalhealth1.pdf, mentalhealth2.pdf, mental_health.png
+
+When a user uploads this data, are the metadata tags that need to be added alongside each of these pieces of data?  If so, let me know what they are and I will provide you with them for these data.
+
+After implementing all this stuff, there need to be tests to:
+
+- Ensure the code runs bug free (both through FE and BE)
+- Ensure the code actually does what we command it to (like all the wiring is correct and the features implemented) (both through FE and BE)
+
+Maybe one of the most robust ways to track all this is to watch the agentic chat logs that we now have? 
+
+
+------------------------------ SWITCH TO OPENAI
+
+There are going to be three total asks for you to review separate things. This is the very first ask of those. The three asks are going to be bucketed into architecture slash feature updates is the first. The second will be code reuse updates, and the third will be sciency updates. But below, I'm only giving you the specific ask for the architecture updates. Once you've done that, then I'll give you the ask for the second.
+
+Output: structured report: Critical correctness bugs, architecture mismatches, scientific/ML assumptions, risk register, fix order, “does this match the product intent?”,
+
+Please make this report, and we will keep updating it as need be as we go through the Asks.
+
+<<ASK1>>
+Is the entire app what we meant it to be?  Both in terms of AI, UX, absolutely everything else.  Feel free to refer back to the below listed documents.
+
+For the old plans, I'm only providing them because there might be a missing user experience that we don't currently have implemented
+that we might want to implement. So this is just to check, like we don't necessarily need to include anything from the old stuff below, from the old plans below. I'm only including the old plans because there might still be some good stuff in them that we forgot to implement. So your task is to, specifically for the old ones, review all the things that I'm pointing you to and see if there's anything that we should be implementing. And right now your task is to do a review of the current code we have to the most recent plan and to all these old plans. You are not to do any code itself at this point. You're just doing all this review. And you are also coming up with the next steps to fill in any identified gaps. There could be no identified gaps, but if there are, just come up with the implementation plan to wrap all this up.
+
+docs/AI_plan.txt --> most recent plan
+DEPRECATED-agents/README_2025-06-26.md --> old plan
+DEPRECATED-agents/README.md --> old plan
+DEPRECATED-web/*.md
+DEPRECATED-docs/*.md
+DEPRECATED-infra/*.md
+DEPRECATED-api/*.md
+
+
+------------------------------
+
+<<ASK2>>
+
+Now, I would like you to iteratively fine-tooth comb everything that we've created in the different repos. And I'll link them again below, because I still see that there's a ton of potentially good code in each of these that we could be using in order to plug in these gaps. So I would like you to look through the code for all the repos as well now, and update the implementation plan if need be.
+
+
+DEPRECATED-agents/*
+DEPRECATED-web/*
+DEPRECATED-docs/*
+DEPRECATED-infra/*
+DEPRECATED-api/*
+
+
+This includes all of the subdirectories as well within all of these, not just the root directories themselves within the repos.
+
+------------------------------
+
+<<ASK3>>
+
+
+Okay, so the last ask of you to review before we start with the next steps are to look at the current scientific mathematical AI approach that we currently have. So, you know, this is in terms of how we're doing the embeddings, what we're doing the embeddings on, is memory working, are the different agents actually doing what we want them to do in a robust way (i.e. the output as actually good and not just some stupid generic stuff), it is which models we're using, it is how the agentic structure is set up, it is any other scientific thing or mathematical thing or just pure AI thing. Let's do a full review of all that stuff to make sure that everything is sound and as it should be. And there might be some glaring gaps in this as well, so your task is to, given these, update the implementation plan.
+
+------------------------------
+
+
+Can we now do an entire review on all the updates we just made?
+
+So in other words, regression scan + “did we actually do what we think we did?”
+
+“we did X — did we accidentally reintroduce Y or break Z?”
+
+and so on...
+
+
+
+------------------------------
+
+Did you do real live, e2e testing of the entire product?  I'm talking actual live usage.  Just walk through step by step like you're a user of the system.  DO absolutely everything.  
+
+Feel free to test this on the mental health materials I provided to you earlier (mentalhealth1.pdf, mentalhealth2.pdf, mental_health.png)
+

@@ -1,0 +1,19 @@
+# CODEOWNERS for GhostLine Web Repository
+# This file defines the code owners for the web repository
+
+# Default owners for everything in the repo
+* @ghostline/web-team
+
+# Frontend specific ownership
+/src/components/ @ghostline/frontend-team
+/src/pages/ @ghostline/frontend-team
+/public/ @ghostline/frontend-team
+
+# Configuration and build files
+/package.json @ghostline/web-leads
+/tsconfig.json @ghostline/web-leads
+/.github/ @ghostline/devops-team
+
+# Documentation
+/README.md @ghostline/documentation-team
+/docs/ @ghostline/documentation-team 

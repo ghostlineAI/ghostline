@@ -75,6 +75,9 @@ def get_pricing(provider: str, model: str) -> tuple[float, float]:
             return price, 0.0  # Embeddings only have input cost
         pricing = OPENAI_PRICING.get(model, {"input": 0.0025, "output": 0.01})
         return pricing["input"], pricing["output"]
+    elif provider == "local":
+        # Local/offline providers have no API cost.
+        return 0.0, 0.0
     else:
         # Default fallback
         return 0.01, 0.01
@@ -166,6 +169,7 @@ class CostTracker:
         duration_ms: int = 0,
         success: bool = True,
         call_type: str = "chat",
+        embedding_dimensions: Optional[int] = None,
         project_id: Optional[UUID] = None,
         task_id: Optional[UUID] = None,
         workflow_run_id: Optional[str] = None,
@@ -201,6 +205,7 @@ class CostTracker:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=total_tokens,
+            embedding_dimensions=embedding_dimensions,
             input_cost=input_cost,
             output_cost=output_cost,
             total_cost=total_cost,

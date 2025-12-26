@@ -12,6 +12,7 @@ All specialized agents inherit from BaseAgent, which provides:
 import os
 import sys
 import logging
+from contextvars import ContextVar
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 # Cost tracking context (thread-local style)
 # ─────────────────────────────────────────────────────────────────────────────
-_cost_context: dict = {}
+_cost_context_var: ContextVar[dict] = ContextVar("_ghostline_cost_context", default={})
 
 
 def set_cost_context(
@@ -54,25 +55,41 @@ def set_cost_context(
     Set the context for cost tracking.
     Call this before running agent workflows to enable DB persistence.
     """
-    global _cost_context
-    _cost_context = {
+    ctx = {
         "project_id": project_id,
         "task_id": task_id,
         "workflow_run_id": workflow_run_id,
         "chapter_number": chapter_number,
         "db_session": db_session,
     }
+    # Return a token so callers can restore previous context safely (nested runs).
+    return _cost_context_var.set(ctx)
 
 
 def get_cost_context() -> dict:
     """Get the current cost tracking context."""
-    return _cost_context.copy()
+    try:
+        ctx = _cost_context_var.get() or {}
+    except Exception:
+        ctx = {}
+    return dict(ctx)
 
 
-def clear_cost_context():
-    """Clear the cost tracking context."""
-    global _cost_context
-    _cost_context = {}
+def clear_cost_context(token=None):
+    """
+    Clear the cost tracking context.
+    
+    If a token is provided (returned by set_cost_context), restore the previous
+    context (safe for nested contexts). Otherwise, clear to empty.
+    """
+    if token is not None:
+        try:
+            _cost_context_var.reset(token)
+            return
+        except Exception:
+            # Fall back to clearing below if reset fails
+            pass
+    _cost_context_var.set({})
 
 
 class AgentRole(str, Enum):

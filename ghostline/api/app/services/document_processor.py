@@ -16,6 +16,7 @@ Uses Vision Language Models (Claude/GPT-4V) for image understanding.
 import base64
 import os
 import tempfile
+import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -366,9 +367,85 @@ Be thorough - this content will be used as source material for generating a book
                 ]
             )
             
-            # Invoke the VLM
-            response = llm.invoke([message])
+            # Invoke the VLM (and cost-track it if possible)
+            started = time.time()
+            response = None
+            try:
+                response = llm.invoke([message])
+            except Exception as e:
+                duration_ms = int((time.time() - started) * 1000)
+                # Record failed vision call (if context is available)
+                try:
+                    from agents.base.agent import get_cost_context
+                    from app.services.cost_tracker import CostTracker
+
+                    ctx = get_cost_context()
+                    db = ctx.get("db_session")
+                    if db:
+                        tracker = CostTracker(db)
+                        tracker.record(
+                            agent_name="DocumentProcessorVLM",
+                            agent_role="vision",
+                            provider="anthropic",
+                            model="claude-sonnet-4-20250514",
+                            call_type="vision",
+                            input_tokens=0,
+                            output_tokens=0,
+                            duration_ms=duration_ms,
+                            success=False,
+                            error_message=str(e),
+                            project_id=ctx.get("project_id"),
+                            task_id=ctx.get("task_id"),
+                            workflow_run_id=ctx.get("workflow_run_id"),
+                            chapter_number=ctx.get("chapter_number"),
+                            metadata={
+                                "file_path": str(file_path),
+                                "media_type": media_type,
+                                "bytes": len(image_data),
+                            },
+                        )
+                except Exception:
+                    pass
+                raise
+
+            duration_ms = int((time.time() - started) * 1000)
             content = response.content
+
+            # Record to DB cost logs if we have an active cost context
+            try:
+                from agents.base.agent import get_cost_context
+                from app.services.cost_tracker import CostTracker
+
+                ctx = get_cost_context()
+                db = ctx.get("db_session")
+                if db:
+                    usage = getattr(response, "usage_metadata", None) or {}
+                    input_tokens = int(usage.get("input_tokens") or 0)
+                    output_tokens = int(usage.get("output_tokens") or 0)
+                    tracker = CostTracker(db)
+                    tracker.record(
+                        agent_name="DocumentProcessorVLM",
+                        agent_role="vision",
+                        provider="anthropic",
+                        model="claude-sonnet-4-20250514",
+                        call_type="vision",
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        duration_ms=duration_ms,
+                        success=True,
+                        project_id=ctx.get("project_id"),
+                        task_id=ctx.get("task_id"),
+                        workflow_run_id=ctx.get("workflow_run_id"),
+                        chapter_number=ctx.get("chapter_number"),
+                        metadata={
+                            "file_path": str(file_path),
+                            "media_type": media_type,
+                            "bytes": len(image_data),
+                        },
+                    )
+            except Exception:
+                # Never block extraction on cost tracking
+                pass
             
             if not content or len(content.strip()) < 20:
                 print("[DocumentProcessor] VLM returned minimal content")

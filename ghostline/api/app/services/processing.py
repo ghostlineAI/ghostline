@@ -83,6 +83,19 @@ class ProcessingService:
         Returns:
             ProcessingResult with processing status
         """
+        cost_token = None
+        try:
+            # Ensure all ingestion-time AI calls (VLM + embeddings) are recorded.
+            from agents.base.agent import set_cost_context, clear_cost_context
+            cost_token = set_cost_context(
+                project_id=material.project_id,
+                task_id=None,
+                workflow_run_id=f"ingest_{material.id}",
+                db_session=db,
+            )
+        except Exception:
+            clear_cost_context = None  # type: ignore
+
         try:
             # Update status to processing
             material.processing_status = ProcessingStatus.PROCESSING
@@ -142,6 +155,12 @@ class ProcessingService:
                 status=ProcessingStatus.FAILED,
                 error_message=str(e),
             )
+        finally:
+            if cost_token is not None and clear_cost_context is not None:
+                try:
+                    clear_cost_context(cost_token)
+                except Exception:
+                    pass
     
     def _get_file_content(self, material: SourceMaterial) -> Optional[bytes]:
         """Get file content from storage."""
@@ -211,48 +230,67 @@ class ProcessingService:
         Returns:
             VoiceProfileResult with profile details
         """
-        # Collect text from writing samples
-        sample_texts = []
-        for material in writing_samples:
-            if material.extracted_content:
-                sample_texts.append(material.extracted_content[:5000])  # First 5k chars
-        
-        if not sample_texts:
-            raise ValueError("No text content in writing samples")
-        
-        # Combine and create embedding
-        combined_text = "\n\n---\n\n".join(sample_texts)
-        embedding_result = self.embeddings.embed_text(combined_text)
-        
-        # Analyze style with LLM (optional, can be done separately)
-        style_description = self._analyze_style(sample_texts)
-        
-        # Create or update voice profile
-        existing_profile = db.query(VoiceProfile).filter(
-            VoiceProfile.project_id == project.id
-        ).first()
-        
-        if existing_profile:
-            existing_profile.voice_embedding = embedding_result.embedding
-            existing_profile.style_description = style_description
-            profile = existing_profile
-        else:
-            profile = VoiceProfile(
+        cost_token = None
+        clear_cost_context = None  # set if we successfully import it
+        try:
+            from agents.base.agent import set_cost_context, clear_cost_context
+            cost_token = set_cost_context(
                 project_id=project.id,
-                voice_embedding=embedding_result.embedding,
-                style_description=style_description,
+                task_id=None,
+                workflow_run_id=f"voice_profile_{project.id}",
+                db_session=db,
             )
-            db.add(profile)
-        
-        db.commit()
-        db.refresh(profile)
-        
-        return VoiceProfileResult(
-            profile_id=profile.id,
-            embedding_dimensions=embedding_result.dimensions,
-            style_description=style_description,
-            samples_analyzed=len(sample_texts),
-        )
+        except Exception:
+            clear_cost_context = None  # type: ignore
+        try:
+            # Collect text from writing samples
+            sample_texts = []
+            for material in writing_samples:
+                if material.extracted_content:
+                    sample_texts.append(material.extracted_content[:5000])  # First 5k chars
+            
+            if not sample_texts:
+                raise ValueError("No text content in writing samples")
+            
+            # Combine and create embedding
+            combined_text = "\n\n---\n\n".join(sample_texts)
+            embedding_result = self.embeddings.embed_text(combined_text)
+            
+            # Analyze style with LLM (optional, can be done separately)
+            style_description = self._analyze_style(sample_texts)
+            
+            # Create or update voice profile
+            existing_profile = db.query(VoiceProfile).filter(
+                VoiceProfile.project_id == project.id
+            ).first()
+            
+            if existing_profile:
+                existing_profile.voice_embedding = embedding_result.embedding
+                existing_profile.style_description = style_description
+                profile = existing_profile
+            else:
+                profile = VoiceProfile(
+                    project_id=project.id,
+                    voice_embedding=embedding_result.embedding,
+                    style_description=style_description,
+                )
+                db.add(profile)
+            
+            db.commit()
+            db.refresh(profile)
+            
+            return VoiceProfileResult(
+                profile_id=profile.id,
+                embedding_dimensions=embedding_result.dimensions,
+                style_description=style_description,
+                samples_analyzed=len(sample_texts),
+            )
+        finally:
+            if cost_token is not None and clear_cost_context is not None:
+                try:
+                    clear_cost_context(cost_token)
+                except Exception:
+                    pass
     
     def _analyze_style(self, sample_texts: list[str]) -> str:
         """Basic style analysis without LLM."""

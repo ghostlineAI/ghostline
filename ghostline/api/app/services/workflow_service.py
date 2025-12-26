@@ -41,6 +41,44 @@ class WorkflowService:
         self._workflow = None
         self._outline_subgraph = None
         self._chapter_subgraph = None
+
+    def _push_cost_context(
+        self,
+        *,
+        project_id: UUID,
+        task_id: Optional[UUID],
+        workflow_run_id: Optional[str],
+        chapter_number: Optional[int] = None,
+    ):
+        """
+        Ensure cost tracking is enabled for *all* agent calls in this workflow invocation.
+        
+        This is critical for non-Celery/synchronous runs (scripts, direct service calls),
+        where the Celery task wrapper isn't present to set the context.
+        """
+        try:
+            from agents.base.agent import set_cost_context
+
+            return set_cost_context(
+                project_id=project_id,
+                task_id=task_id,
+                workflow_run_id=workflow_run_id,
+                chapter_number=chapter_number,
+                db_session=self.db,
+            )
+        except Exception:
+            return None
+
+    def _pop_cost_context(self, token):
+        """Pop/restore the previous cost context (safe for nesting)."""
+        if token is None:
+            return
+        try:
+            from agents.base.agent import clear_cost_context
+
+            clear_cost_context(token)
+        except Exception:
+            pass
     
     @property
     def workflow(self):
@@ -94,15 +132,23 @@ class WorkflowService:
         target_chapters = input_data.get("target_chapters", 3)
         words_per_page = input_data.get("words_per_page", 250)
         
-        # Start the workflow with page configuration
-        result = self.workflow.start(
-            project_id=str(project.id),
-            user_id=str(project.owner_id),
-            source_material_ids=source_material_ids,
-            target_pages=target_pages,
-            target_chapters=target_chapters,
-            words_per_page=words_per_page,
+        token = self._push_cost_context(
+            project_id=project.id,
+            task_id=task.id,
+            workflow_run_id=f"book_{task.id}",
         )
+        try:
+            # Start the workflow with page configuration
+            result = self.workflow.start(
+                project_id=str(project.id),
+                user_id=str(project.owner_id),
+                source_material_ids=source_material_ids,
+                target_pages=target_pages,
+                target_chapters=target_chapters,
+                words_per_page=words_per_page,
+            )
+        finally:
+            self._pop_cost_context(token)
         
         # Store workflow_id in task output_data
         existing_output = task.output_data or {}
@@ -150,11 +196,19 @@ class WorkflowService:
         if not workflow_id:
             raise ValueError("No workflow_id found in task output_data")
         
-        # Resume the workflow
-        result = self.workflow.resume(
-            workflow_id=workflow_id,
-            user_input=user_input,
+        token = self._push_cost_context(
+            project_id=task.project_id,
+            task_id=task.id,
+            workflow_run_id=f"resume_{workflow_id}",
         )
+        try:
+            # Resume the workflow
+            result = self.workflow.resume(
+                workflow_id=workflow_id,
+                user_input=user_input,
+            )
+        finally:
+            self._pop_cost_context(token)
         
         # Update task state
         state = result["state"]
@@ -222,16 +276,24 @@ class WorkflowService:
         task.progress = 20
         self.db.commit()
         
-        # Run the outline subgraph
-        input_data = task.input_data or {}
-        target_chapters = int(input_data.get("target_chapters") or 10)
-        result = self.outline_subgraph.run(
-            source_summaries=source_summaries,
-            project_title=project.title,
-            project_description=project.description or "",
-            target_chapters=target_chapters,
-            voice_guidance="",
+        token = self._push_cost_context(
+            project_id=project.id,
+            task_id=task.id,
+            workflow_run_id=f"outline_{task.id}",
         )
+        try:
+            # Run the outline subgraph
+            input_data = task.input_data or {}
+            target_chapters = int(input_data.get("target_chapters") or 10)
+            result = self.outline_subgraph.run(
+                source_summaries=source_summaries,
+                project_title=project.title,
+                project_description=project.description or "",
+                target_chapters=target_chapters,
+                voice_guidance="",
+            )
+        finally:
+            self._pop_cost_context(token)
         
         # Store results
         task.output_data = task.output_data or {}
@@ -283,22 +345,32 @@ class WorkflowService:
         task.progress = 10
         self.db.commit()
         
-        # Run the chapter subgraph
-        input_data = task.input_data or {}
-        # Optional: allow callers to specify approximate length targets
-        target_words = int(input_data.get("target_words") or 3000)
-        result = self.chapter_subgraph.run(
-            chapter_outline=chapter_outline,
-            source_chunks=source_chunks or [],
-            source_chunks_with_citations=source_chunks_with_citations or [],
-            previous_summaries=previous_summaries or [],
-            voice_profile=voice_profile or {},
-            target_words=target_words,
-            project_id=str(project.id),
+        token = self._push_cost_context(
+            project_id=project.id,
+            task_id=task.id,
+            workflow_run_id=f"chapter_{task.id}_ch{chapter_number}",
+            chapter_number=chapter_number,
         )
+        try:
+            # Run the chapter subgraph
+            input_data = task.input_data or {}
+            # Optional: allow callers to specify approximate length targets
+            target_words = int(input_data.get("target_words") or 3000)
+            result = self.chapter_subgraph.run(
+                chapter_outline=chapter_outline,
+                source_chunks=source_chunks or [],
+                source_chunks_with_citations=source_chunks_with_citations or [],
+                previous_summaries=previous_summaries or [],
+                voice_profile=voice_profile or {},
+                target_words=target_words,
+                project_id=str(project.id),
+            )
+        finally:
+            self._pop_cost_context(token)
         
         # Store results
         task.output_data = task.output_data or {}
+        quality_gates_passed = bool(result.get("quality_gates_passed", False))
         task.output_data["chapter"] = {
             "number": chapter_number,
             "content": result["content"],
@@ -310,6 +382,9 @@ class WorkflowService:
             "citations": result.get("citations", []),
             "citation_report": result.get("citation_report", {}),
             "claim_mappings": result.get("claim_mappings", []),
+            "quality_gates_passed": quality_gates_passed,
+            "quality_gate_report": result.get("quality_gate_report") or {},
+            "revision_history": result.get("revision_history") or [],
         }
         task.output_data["iterations"] = result["iterations"]
         task.output_data["tokens_used"] = result["tokens_used"]
@@ -317,8 +392,16 @@ class WorkflowService:
         
         task.progress = 100
         task.current_step = f"Chapter {chapter_number} complete"
-        task.status = TaskStatus.COMPLETED
-        task.completed_at = datetime.utcnow()
+        strict_mode = str(os.getenv("GHOSTLINE_STRICT_MODE", "")).strip().lower() in ("1", "true", "yes", "on")
+        if strict_mode and not quality_gates_passed:
+            task.status = TaskStatus.FAILED
+            task.error_message = (
+                f"Chapter {chapter_number} quality gates not met: "
+                f"{result.get('quality_gate_report') or {}}"
+            )
+        else:
+            task.status = TaskStatus.COMPLETED
+            task.completed_at = datetime.utcnow()
         task.token_usage = result["tokens_used"]
         task.estimated_cost = result["cost"]
         
@@ -342,7 +425,10 @@ class WorkflowService:
         """
         return self.resume_workflow(
             task=task,
-            user_input={"approve_outline": True},
+            user_input={
+                "approve_outline": True,
+                "project_id": str(task.project_id),  # Ensure project_id is preserved on resume
+            },
         )
     
     def provide_feedback(

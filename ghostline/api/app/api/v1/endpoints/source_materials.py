@@ -156,6 +156,20 @@ async def upload_file(
         
         # Process the source material (extract text, chunk, embed)
         processing_service = get_processing_service()
+        cost_token = None
+        try:
+            # Ensure VLM + embedding calls during ingestion are cost-tracked in the DB.
+            # (Uploads are synchronous and don't go through the Celery wrapper.)
+            from agents.base.agent import set_cost_context, clear_cost_context
+
+            cost_token = set_cost_context(
+                project_id=project.id,
+                task_id=None,
+                workflow_run_id=f"ingest_{source_material.id}",
+                db_session=db,
+            )
+        except Exception:
+            clear_cost_context = None  # type: ignore
         try:
             result = processing_service.process_source_material(source_material, db)
             print(f"[UPLOAD] Processed {source_material.filename}: {result.chunks_created} chunks, {result.total_words} words")
@@ -165,6 +179,12 @@ async def upload_file(
             source_material.processing_status = ProcessingStatus.FAILED
             source_material.processing_error = str(e)
             db.commit()
+        finally:
+            if cost_token is not None and clear_cost_context is not None:
+                try:
+                    clear_cost_context(cost_token)
+                except Exception:
+                    pass
 
         return {
             "id": str(source_material.id),

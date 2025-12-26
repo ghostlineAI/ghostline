@@ -1,0 +1,36 @@
+Do you understand where we're at?  We wrapped up phase 6 and I think 7 and then started e2e testing.  
+
+I asked you to write a book based on my mental health notes.  Has that been done?  This was my initial ask for the e2e testing:
+
+Did you do real live, e2e testing of the entire product?  I'm talking actual live usage.  Just walk through step by step like you're a user of the system.  DO absolutely everything.  
+
+Feel free to test this on the mental health materials I provided to you earlier (mentalhealth1.pdf, mentalhealth2.pdf, mental_health.png)
+
+Where are we at with all this?  Was the above done and the most recent thing you were just testing was the FE?  
+
+Please continue with all of this if you haven't fully completed it.
+
+------------------------------
+
+Did you finish the real live, e2e testing of the entire product?   
+
+
+
+------------------------------
+
+
+How does the output look?  Actually review it word by word to ensure our system is working properly.  Also feel free to reference the data input and so on...
+
+I'm asking for a consistency/robustness test here which is subjective/qualitative.  How did our product work?  What issues (if any are there?)
+
+Look at the book produced by the mental health data.  
+
+------------------------------
+
+  Some other things to check related to this point are, one, did the system use all of the three mental health data? So was there embedding generated for all of it? Did it use it appropriately? Did the embedding make sense? Did it ingest the embedding? All that good stuff. Another thing is, did you review all of the agentic talking logs? A third thing is, did you review any other logs that might have been generated? Fourth thing is, did you look at the output of the book that was produced and compare that to the actual input data? So basically, this is a cross-consistency check you're doing yourself to look at the data that we built this on and then look at the book and then say, hey, does the book make sense given the input data? Another thing is to check that the appropriate AI systems were set for all of the different agents. Another thing is to ensure, did you ensure that all the agents are working appropriately, independently, and further working appropriately and correctly together? And I'm sure there's a number of other specific checks here that I'm forgetting.
+
+------------------------------
+
+I have not reviewed like anything you have done since we started a new server locally (which was a long time ago).  Can you give me a cheatsheet of everything you accomplished, tell me about it if it warrants a description, point me to the output of the tests you did to ensure it's working, tell me what the actual tests are that you did 
+
+Include the product issues from the previous asks if there were any

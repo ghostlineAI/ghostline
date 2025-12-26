@@ -12,6 +12,7 @@ Provides text embeddings for:
 
 import os
 import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -20,6 +21,93 @@ from typing import Optional
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_openai_embedding_tokens(response) -> int:
+    """
+    Best-effort extraction of token usage from the OpenAI embeddings response.
+    
+    The OpenAI python SDK has changed response types across versions, so we handle
+    both attribute-style and dict-style access.
+    """
+    usage = getattr(response, "usage", None)
+    if usage is None and isinstance(response, dict):
+        usage = response.get("usage")
+    if usage is None:
+        return 0
+
+    # Attribute-style usage objects
+    for key in ("total_tokens", "prompt_tokens", "input_tokens"):
+        val = getattr(usage, key, None)
+        if isinstance(val, int):
+            return val
+
+    # Dict-style usage
+    if isinstance(usage, dict):
+        for key in ("total_tokens", "prompt_tokens", "input_tokens"):
+            val = usage.get(key)
+            if isinstance(val, int):
+                return val
+
+    return 0
+
+
+def _record_embedding_usage(
+    *,
+    agent_name: str,
+    provider: str,
+    model: str,
+    input_tokens: int,
+    embedding_dimensions: Optional[int],
+    duration_ms: int,
+    success: bool,
+    error_message: Optional[str] = None,
+    batch_size: Optional[int] = None,
+    extra_data: Optional[dict] = None,
+):
+    """
+    Record an embedding call to the LLM usage log if cost context is available.
+    
+    This allows embedding costs to be aggregated alongside chat/vision calls.
+    """
+    try:
+        from agents.base.agent import get_cost_context
+    except Exception:
+        return
+
+    ctx = get_cost_context()
+    db = ctx.get("db_session")
+    if not db:
+        return
+
+    try:
+        from app.services.cost_tracker import CostTracker
+
+        tracker = CostTracker(db)
+        tracker.record(
+            agent_name=agent_name,
+            agent_role="embedding",
+            provider=provider,
+            model=model,
+            call_type="embedding",
+            input_tokens=int(input_tokens or 0),
+            output_tokens=0,
+            duration_ms=int(duration_ms or 0),
+            success=bool(success),
+            error_message=error_message,
+            embedding_dimensions=embedding_dimensions,
+            project_id=ctx.get("project_id"),
+            task_id=ctx.get("task_id"),
+            workflow_run_id=ctx.get("workflow_run_id"),
+            chapter_number=ctx.get("chapter_number"),
+            metadata={
+                "batch_size": batch_size,
+                **(extra_data or {}),
+            },
+        )
+    except Exception as e:
+        # Cost tracking must never break embeddings.
+        logger.warning(f"Failed to record embedding usage: {e}")
 
 
 class EmbeddingProvider(str, Enum):
@@ -109,13 +197,42 @@ class OpenAIEmbeddingClient(BaseEmbeddingClient):
         """Generate embedding for a single text using OpenAI."""
         if not text or not text.strip():
             return [0.0] * self._dimensions
-        
-        response = self.client.embeddings.create(
-            model=self.model,
-            input=text,
-        )
-        
-        return response.data[0].embedding
+
+        start = time.time()
+        try:
+            response = self.client.embeddings.create(
+                model=self.model,
+                input=text,
+            )
+            duration_ms = int((time.time() - start) * 1000)
+            input_tokens = _extract_openai_embedding_tokens(response)
+            _record_embedding_usage(
+                agent_name="OpenAIEmbeddingClient",
+                provider="openai",
+                model=self.model,
+                input_tokens=input_tokens,
+                embedding_dimensions=self._dimensions,
+                duration_ms=duration_ms,
+                success=True,
+                batch_size=1,
+                extra_data={"text_length": len(text)},
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            _record_embedding_usage(
+                agent_name="OpenAIEmbeddingClient",
+                provider="openai",
+                model=self.model,
+                input_tokens=0,
+                embedding_dimensions=self._dimensions,
+                duration_ms=duration_ms,
+                success=False,
+                error_message=str(e),
+                batch_size=1,
+                extra_data={"text_length": len(text)},
+            )
+            raise
     
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts using OpenAI (batched)."""
@@ -131,10 +248,40 @@ class OpenAIEmbeddingClient(BaseEmbeddingClient):
         # Batch request to OpenAI
         indices, valid_texts = zip(*non_empty)
         
-        response = self.client.embeddings.create(
-            model=self.model,
-            input=list(valid_texts),
-        )
+        start = time.time()
+        try:
+            response = self.client.embeddings.create(
+                model=self.model,
+                input=list(valid_texts),
+            )
+            duration_ms = int((time.time() - start) * 1000)
+            input_tokens = _extract_openai_embedding_tokens(response)
+            _record_embedding_usage(
+                agent_name="OpenAIEmbeddingClient",
+                provider="openai",
+                model=self.model,
+                input_tokens=input_tokens,
+                embedding_dimensions=self._dimensions,
+                duration_ms=duration_ms,
+                success=True,
+                batch_size=len(valid_texts),
+                extra_data={"total_inputs": len(texts)},
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            _record_embedding_usage(
+                agent_name="OpenAIEmbeddingClient",
+                provider="openai",
+                model=self.model,
+                input_tokens=0,
+                embedding_dimensions=self._dimensions,
+                duration_ms=duration_ms,
+                success=False,
+                error_message=str(e),
+                batch_size=len(valid_texts),
+                extra_data={"total_inputs": len(texts)},
+            )
+            raise
         
         # Map back to original positions
         results = [[0.0] * self._dimensions for _ in texts]
@@ -231,44 +378,104 @@ class LocalEmbeddingClient(BaseEmbeddingClient):
         """Generate embedding for a single text using sentence-transformers."""
         if not text or not text.strip():
             return [0.0] * self.dimensions
-        
-        _ = self.model  # ensures fallback flag/dims are set
-        if self._use_hash_fallback:
-            return self._hash_embed(text, self.dimensions)
-        
-        embedding = self.model.encode(text, normalize_embeddings=True)
-        return embedding.tolist()
+
+        start = time.time()
+        try:
+            _ = self.model  # ensures fallback flag/dims are set
+            if self._use_hash_fallback:
+                emb = self._hash_embed(text, self.dimensions)
+            else:
+                embedding = self.model.encode(text, normalize_embeddings=True)
+                emb = embedding.tolist()
+
+            duration_ms = int((time.time() - start) * 1000)
+            _record_embedding_usage(
+                agent_name="LocalEmbeddingClient",
+                provider="local",
+                model=self.model_name,
+                input_tokens=0,
+                embedding_dimensions=self.dimensions,
+                duration_ms=duration_ms,
+                success=True,
+                batch_size=1,
+                extra_data={"text_length": len(text), "hash_fallback": bool(self._use_hash_fallback)},
+            )
+            return emb
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            _record_embedding_usage(
+                agent_name="LocalEmbeddingClient",
+                provider="local",
+                model=self.model_name,
+                input_tokens=0,
+                embedding_dimensions=self.dimensions,
+                duration_ms=duration_ms,
+                success=False,
+                error_message=str(e),
+                batch_size=1,
+                extra_data={"text_length": len(text), "hash_fallback": bool(self._use_hash_fallback)},
+            )
+            raise
     
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts using sentence-transformers."""
         if not texts:
             return []
-        
-        _ = self.model  # ensures fallback flag/dims are set
-        if self._use_hash_fallback:
-            return [self._hash_embed(t, self.dimensions) for t in texts]
-        
-        # Handle empty texts
-        non_empty_mask = [bool(t and t.strip()) for t in texts]
-        valid_texts = [t for t, valid in zip(texts, non_empty_mask) if valid]
-        
-        if not valid_texts:
-            return [[0.0] * self.dimensions for _ in texts]
-        
-        # Batch encode
-        embeddings = self.model.encode(valid_texts, normalize_embeddings=True)
-        
-        # Map back to original positions
-        results = []
-        valid_idx = 0
-        for is_valid in non_empty_mask:
-            if is_valid:
-                results.append(embeddings[valid_idx].tolist())
-                valid_idx += 1
+
+        start = time.time()
+        try:
+            _ = self.model  # ensures fallback flag/dims are set
+            if self._use_hash_fallback:
+                results = [self._hash_embed(t, self.dimensions) for t in texts]
             else:
-                results.append([0.0] * self.dimensions)
-        
-        return results
+                # Handle empty texts
+                non_empty_mask = [bool(t and t.strip()) for t in texts]
+                valid_texts = [t for t, valid in zip(texts, non_empty_mask) if valid]
+
+                if not valid_texts:
+                    results = [[0.0] * self.dimensions for _ in texts]
+                else:
+                    # Batch encode
+                    embeddings = self.model.encode(valid_texts, normalize_embeddings=True)
+
+                    # Map back to original positions
+                    results = []
+                    valid_idx = 0
+                    for is_valid in non_empty_mask:
+                        if is_valid:
+                            results.append(embeddings[valid_idx].tolist())
+                            valid_idx += 1
+                        else:
+                            results.append([0.0] * self.dimensions)
+
+            duration_ms = int((time.time() - start) * 1000)
+            _record_embedding_usage(
+                agent_name="LocalEmbeddingClient",
+                provider="local",
+                model=self.model_name,
+                input_tokens=0,
+                embedding_dimensions=self.dimensions,
+                duration_ms=duration_ms,
+                success=True,
+                batch_size=len(texts),
+                extra_data={"hash_fallback": bool(self._use_hash_fallback)},
+            )
+            return results
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            _record_embedding_usage(
+                agent_name="LocalEmbeddingClient",
+                provider="local",
+                model=self.model_name,
+                input_tokens=0,
+                embedding_dimensions=self.dimensions,
+                duration_ms=duration_ms,
+                success=False,
+                error_message=str(e),
+                batch_size=len(texts),
+                extra_data={"hash_fallback": bool(self._use_hash_fallback)},
+            )
+            raise
 
 
 class EmbeddingService:

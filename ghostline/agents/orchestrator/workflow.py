@@ -232,12 +232,22 @@ def ingest_sources(state: WorkflowState) -> WorkflowState:
     
     # Local dev implementation: load project + source materials from DB and build
     # lightweight summaries for outline generation.
+    # Check if we already have source data (resume scenario)
+    if state.get("source_summaries") and state.get("project_title"):
+        logger.info("📝 [Workflow] Skipping ingest - already done")
+        return state
+    
+    project_id_str = state.get("project_id")
+    if not project_id_str:
+        logger.warning("📝 [Workflow] No project_id in state - cannot ingest")
+        return state
+    
     db = _get_db_session()
     try:
         from app.models.project import Project
         from app.models.source_material import SourceMaterial
 
-        project_uuid = UUID(state["project_id"])
+        project_uuid = UUID(project_id_str)
         source_ids = [UUID(s) for s in state.get("source_material_ids", []) or []]
 
         project = db.query(Project).filter(Project.id == project_uuid).first()
@@ -550,6 +560,7 @@ def draft_chapter(state: WorkflowState) -> WorkflowState:
 
         content = result.get("content") or ""
         title = chapter_outline.get("title") or f"Chapter {chapter_number}"
+        quality_gates_passed = bool(result.get("quality_gates_passed", False))
 
         # Store in workflow state with citation report
         citation_report = result.get("citation_report", {})
@@ -569,6 +580,10 @@ def draft_chapter(state: WorkflowState) -> WorkflowState:
                 "citation_report": citation_report,
                 "claim_mappings": result.get("claim_mappings", []),
                 "citations": result.get("citations", []),
+                # Quality gate diagnostics (always persisted, even on failure)
+                "quality_gates_passed": quality_gates_passed,
+                "quality_gate_report": result.get("quality_gate_report") or {},
+                "revision_history": result.get("revision_history") or [],
             }
         )
         
@@ -585,6 +600,18 @@ def draft_chapter(state: WorkflowState) -> WorkflowState:
         state.setdefault("cohesion_scores", []).append(float(result.get("cohesion_score", 0.0) or 0.0))
         state["total_tokens"] = (state.get("total_tokens") or 0) + int(result.get("tokens_used") or 0)
         state["total_cost"] = (state.get("total_cost") or 0.0) + float(result.get("cost") or 0.0)
+
+        # Enforce strict quality gates at the workflow level (after persisting diagnostics)
+        if not quality_gates_passed:
+            report = result.get("quality_gate_report") or {}
+            msg = f"Chapter {chapter_number} quality gates not met: {report}"
+            logger.error(msg)
+            state["error"] = msg
+            # Strict mode: fail the workflow (do not ship hallucinated/unsupported content)
+            if strict_mode:
+                raise RuntimeError(msg)
+            # Non-strict: continue (for dev/e2e debugging only)
+            logger.warning(f"Continuing despite failed quality gates (strict_mode off): {msg}")
 
         # Simple summary for cohesion context
         summary = (chapter_outline.get("summary") or "").strip()
@@ -960,13 +987,18 @@ class BookGenerationWorkflow:
             )
             
             # Apply user input to state
-            state_values = dict(state.values)
+            state_values = dict(state.values) if state.values else {}
+            
+            # Ensure project_id is preserved (fix for resume bug)
+            if user_input.get("project_id") and not state_values.get("project_id"):
+                state_values["project_id"] = user_input["project_id"]
+            
             if user_input.get("approve_outline"):
                 state_values["outline_approved"] = True
                 state_values["pending_user_action"] = None
                 conv_logger.log_system("Orchestrator", "Outline approved by user")
             if user_input.get("feedback"):
-                state_values["user_feedback"].append(user_input["feedback"])
+                state_values.setdefault("user_feedback", []).append(user_input["feedback"])
                 conv_logger.log_system("Orchestrator", f"Feedback added: {user_input['feedback'][:100]}...")
             
             # Update state

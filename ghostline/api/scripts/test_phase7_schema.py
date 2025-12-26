@@ -82,7 +82,10 @@ def test_content_chunk_fields():
     required_fields = [
         "id", "content", "chunk_index", "word_count", "token_count",
         "start_page", "end_page", "start_char", "end_char",
-        "embedding", "embedding_model", "source_reference", "metadata",
+        # NOTE: the underlying DB column is named "metadata", but the ORM attribute
+        # is intentionally named "chunk_metadata" to avoid SQLAlchemy's reserved
+        # Base.metadata attribute.
+        "embedding", "embedding_model", "source_reference", "chunk_metadata",
         "source_material_id", "project_id", "created_at"
     ]
     

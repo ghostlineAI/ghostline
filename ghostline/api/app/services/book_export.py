@@ -196,7 +196,7 @@ class BookExportService:
             f.write(content)
 
     # =========================================================================
-    # Citation -> Footnotes helpers
+    # Citation helpers
     # =========================================================================
 
     _CITATION_PATTERN = re.compile(r"\[citation:\s*([^\]]+)\]", re.IGNORECASE)
@@ -204,11 +204,15 @@ class BookExportService:
     def _extract_citations_as_footnotes(
         self,
         content: str,
-        marker_style: str = "brackets",  # "brackets" | "markdown"
+        marker_style: str = "none",  # retained for backwards compat; we no longer emit inline markers
     ) -> tuple[str, list[str]]:
         """
-        Convert inline [citation: ...] markers into footnote references and return
-        a list of footnote bodies (in first-appearance order).
+        Remove inline [citation: ...] markers from the text and return the cleaned text
+        plus a list of note bodies (in first-appearance order).
+
+        IMPORTANT:
+        - We do NOT emit inline numeric markers (e.g. [1]) anymore. The product requirement
+          is to keep citations out of the prose and render them in a Notes/References section.
         """
         if not content:
             return content, []
@@ -223,12 +227,11 @@ class BookExportService:
             if note_text not in note_numbers:
                 note_numbers[note_text] = len(notes) + 1
                 notes.append(note_text)
-            n = note_numbers[note_text]
-            if marker_style == "markdown":
-                return f"[^{n}]"
-            return f"[{n}]"
+            # Do not insert any inline footnote markers in the prose.
+            return ""
 
         processed = self._CITATION_PATTERN.sub(_repl, content)
+        processed = re.sub(r"[ \t]{2,}", " ", processed)
         return processed, notes
 
     def _render_html_notes(self, notes: list[str]) -> str:
@@ -383,16 +386,31 @@ class BookExportService:
             ))
             story.append(Spacer(1, 20))
             
-            # Process content - convert markdown to paragraphs
-            chapter_body, notes = self._extract_citations_as_footnotes(
-                chapter.content, marker_style="brackets"
+            # Clean content (remove any residual inline citation markers)
+            chapter_body, marker_notes = self._extract_citations_as_footnotes(
+                chapter.content, marker_style="none"
             )
+
+            # Prefer structured citation metadata if present; fall back to marker notes.
+            notes = []
+            if chapter.citations:
+                for cit in chapter.citations:
+                    filename = (cit.filename or "Unknown").strip()
+                    quote = (cit.quote or "").strip()
+                    if quote:
+                        notes.append(f"{filename} - \"{quote}\"")
+                    else:
+                        notes.append(filename)
+            else:
+                notes = marker_notes
+
+            # Process content - convert markdown to paragraphs
             paragraphs = self._markdown_to_paragraphs(
                 chapter_body, body_style, heading2_style
             )
             story.extend(paragraphs)
 
-            # Notes (end-of-chapter footnotes)
+            # Notes (end-of-chapter; no inline markers)
             if notes:
                 story.append(Spacer(1, 12))
                 story.append(Paragraph("Notes", heading2_style))
@@ -601,9 +619,19 @@ class BookExportService:
         
         for chapter in chapters:
             # Convert markdown to HTML
-            chapter_body, notes = self._extract_citations_as_footnotes(
-                chapter.content, marker_style="brackets"
+            chapter_body, marker_notes = self._extract_citations_as_footnotes(
+                chapter.content, marker_style="none"
             )
+
+            notes = []
+            if chapter.citations:
+                for cit in chapter.citations:
+                    filename = (cit.filename or "Unknown").strip()
+                    quote = (cit.quote or "").strip()
+                    notes.append(f"{filename} - \"{quote}\"" if quote else filename)
+            else:
+                notes = marker_notes
+
             html_content = self._markdown_to_html(chapter_body) + self._render_html_notes(notes)
             
             c = epub.EpubHtml(
@@ -760,12 +788,20 @@ class BookExportService:
             doc.add_heading(f"Chapter {chapter.number}: {chapter.title}", 1)
             
             # Process content
-            chapter_body, notes = self._extract_citations_as_footnotes(
-                chapter.content, marker_style="brackets"
+            chapter_body, marker_notes = self._extract_citations_as_footnotes(
+                chapter.content, marker_style="none"
             )
+            notes = []
+            if chapter.citations:
+                for cit in chapter.citations:
+                    filename = (cit.filename or "Unknown").strip()
+                    quote = (cit.quote or "").strip()
+                    notes.append(f"{filename} - \"{quote}\"" if quote else filename)
+            else:
+                notes = marker_notes
             self._add_markdown_to_docx(doc, chapter_body)
 
-            # Notes (end-of-chapter footnotes)
+            # Notes (end-of-chapter; no inline markers)
             if notes:
                 doc.add_heading("Notes", 2)
                 for i, note in enumerate(notes, 1):
@@ -1099,9 +1135,17 @@ class BookExportService:
         
         # Chapters
         for chapter in chapters:
-            chapter_body, notes = self._extract_citations_as_footnotes(
-                chapter.content, marker_style="brackets"
+            chapter_body, marker_notes = self._extract_citations_as_footnotes(
+                chapter.content, marker_style="none"
             )
+            notes = []
+            if chapter.citations:
+                for cit in chapter.citations:
+                    filename = (cit.filename or "Unknown").strip()
+                    quote = (cit.quote or "").strip()
+                    notes.append(f"{filename} - \"{quote}\"" if quote else filename)
+            else:
+                notes = marker_notes
             content_html = self._markdown_to_html(chapter_body)
             html += f'''
     <article class="chapter" id="chapter-{chapter.number}">
@@ -1128,19 +1172,8 @@ class BookExportService:
     def _export_markdown(self, chapters: list[Chapter], metadata: BookMetadata) -> str:
         """Export to Markdown format."""
         lines = []
-        # Markdown footnote labels must be unique across the whole document.
-        # We'll allocate footnote numbers globally across all chapters.
-        note_numbers: dict[str, int] = {}
-        notes: list[str] = []
-
-        def _footnote_repl(match: re.Match) -> str:
-            note_text = (match.group(1) or "").strip()
-            if not note_text:
-                return ""
-            if note_text not in note_numbers:
-                note_numbers[note_text] = len(notes) + 1
-                notes.append(note_text)
-            return f"[^{note_numbers[note_text]}]"
+        # We intentionally do NOT add inline footnote markers in markdown output.
+        # Citations are rendered in per-chapter Notes sections.
         
         # Title
         lines.append(f"# {metadata.title}")
@@ -1173,18 +1206,29 @@ class BookExportService:
             lines.append("")
             lines.append(f"*Word count: {chapter.word_count}*")
             lines.append("")
-            chapter_body = self._CITATION_PATTERN.sub(_footnote_repl, chapter.content or "")
-            lines.append(chapter_body)
-            lines.append("")
-            lines.append("---")
+            chapter_body, marker_notes = self._extract_citations_as_footnotes(
+                chapter.content or "", marker_style="none"
+            )
+            lines.append(chapter_body.strip())
             lines.append("")
 
-        # Global Notes section (unique footnotes across the entire markdown doc)
-        if notes:
-            lines.append("## Notes")
-            lines.append("")
-            for i, note in enumerate(notes, 1):
-                lines.append(f"[^{i}]: {note}")
+            notes = []
+            if chapter.citations:
+                for cit in chapter.citations:
+                    filename = (cit.filename or "Unknown").strip()
+                    quote = (cit.quote or "").strip()
+                    notes.append(f"{filename} - \"{quote}\"" if quote else filename)
+            else:
+                notes = marker_notes
+
+            if notes:
+                lines.append("## Notes")
+                lines.append("")
+                for i, note in enumerate(notes, 1):
+                    lines.append(f"{i}. {note}")
+                lines.append("")
+
+            lines.append("---")
             lines.append("")
         
         return '\n'.join(lines)
